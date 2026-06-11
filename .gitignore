@@ -1,0 +1,11 @@
+node_modules/
+miniprogram_npm/
+dist/
+.DS_Store
+*.log
+
+# 微信开发者工具个人配置（含本机路径，不入库）
+project.private.config.json
+
+# 云函数本地调试产物
+**/cloudfunctions/**/node_modules/
