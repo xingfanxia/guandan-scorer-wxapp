@@ -6,13 +6,18 @@
 import automator from 'miniprogram-automator';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { acquireDevtoolsLock, releaseDevtoolsLock } from './devtoolsLock.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const fail = (msg) => { throw new Error(`CLOUD SMOKE FAIL: ${msg}`); };
 
+acquireDevtoolsLock('guandan-scorer-wxapp:cloud-smoke');
+process.on('exit', releaseDevtoolsLock);
+
 const miniProgram = await automator.launch({
   cliPath: '/Applications/wechatwebdevtools.app/Contents/MacOS/cli',
-  projectPath: ROOT
+  projectPath: ROOT,
+  port: 9421 // 与 dahua-dice-wxapp(9422) 分家，避免默认 9420 撞车
 });
 
 try {

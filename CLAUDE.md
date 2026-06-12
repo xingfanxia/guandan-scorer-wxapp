@@ -49,6 +49,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 4. AppSecret / session_key 永不出现在客户端代码或 repo
 5. 真钱/兑换/红包元素是腾讯对未上架内容唯一主动执法类别 —— 体验版也零容忍
 
+## 微信开发者工具 = 单实例共享资源（2026-06-12 与 dahua-dice-wxapp 实测撞车后立规）
+
+**Canonical 约定在 `~/.claude/references/wechat-devtools-lock.md`**（与 dahua-dice-wxapp 共同遵守），要点：
+
+1. **永不 `cli quit`/`pkill` IDE**（生命周期操作杀掉所有项目的会话）。冒烟挂起 = 报告占用并等待/询问。
+2. **automator/生命周期操作前拿锁**：`~/.claude/state/wechat-devtools.lock/`（45 分钟僵尸可抢）。本 repo 实现：`scripts/automator/devtoolsLock.mjs`（automator 脚本已内置）；shell 侧可用 `~/projects/side-projects/dahua-dice-wxapp/scripts/ops/devtools-lock.sh acquire/release/status`。
+3. **窗口级操作**（`cli open --project`、自己项目的 preview/build）不需要锁，先 status 看一眼即可；多项目窗口可共存。
+4. 完全不碰 DevTools 的工作（写码/npm test/tsc/git）随便并行。
+5. **automator 端口分家**：本 repo `port: 9421`（dahua 9422），不要用默认 9420。
+6. **云函数 deploy 经 IDE 全局云会话**，跨项目云操作必须串行（同一把锁）。已知症状：会话不对时报 `ResourceNotFound.Namespace` / `getCloudAPISignedHeader 41002` —— 此时执行面（callFunction）通常仍正常，别误判成函数挂了；处理 = 拿锁后重试或留给 GUI 部署，不要重启 IDE。
+
 ## 开发命令
 
 - `npm test` — shared-logic 纯逻辑测试（node:test，零第三方依赖）

@@ -9,6 +9,7 @@ import automator from 'miniprogram-automator';
 import { mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { acquireDevtoolsLock, releaseDevtoolsLock } from './devtoolsLock.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SHOT_DIR = join(ROOT, 'docs', 'reports', 'wxapp-2-visual');
@@ -17,9 +18,13 @@ mkdirSync(SHOT_DIR, { recursive: true });
 const fail = (msg) => { throw new Error(`E2E FAIL: ${msg}`); };
 const expect = (cond, msg) => { if (!cond) fail(msg); };
 
+acquireDevtoolsLock('guandan-scorer-wxapp:scoring-flow');
+process.on('exit', releaseDevtoolsLock);
+
 const miniProgram = await automator.launch({
   cliPath: '/Applications/wechatwebdevtools.app/Contents/MacOS/cli',
-  projectPath: ROOT
+  projectPath: ROOT,
+  port: 9421 // 与 dahua-dice-wxapp(9422) 分家，避免默认 9420 撞车
 });
 
 try {
