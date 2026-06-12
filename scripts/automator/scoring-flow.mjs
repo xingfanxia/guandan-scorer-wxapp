@@ -23,6 +23,24 @@ process.on('exit', releaseDevtoolsLock);
 
 const miniProgram = await launchOrConnect(ROOT);
 
+/** automator screenshot IPC 在退化会话上会永挂（2026-06-12 实测）—— best-effort，硬验证走 DOM/数据断言 */
+function stepTimeout(promise, label, ms = 20000) {
+  let timer;
+  return Promise.race([
+    Promise.resolve(promise).finally(() => clearTimeout(timer)),
+    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`STEP TIMEOUT: ${label}`)), ms); })
+  ]);
+}
+async function shot(name) {
+  try {
+    await stepTimeout(miniProgram.screenshot({ path: join(SHOT_DIR, name) }), name);
+    console.log(`📸 ${name}`);
+  } catch (err) {
+    console.log(`⚠️ 截图跳过（${err.message}）`);
+  }
+}
+
+
 try {
   let page = await miniProgram.reLaunch('/pages/index/index');
   await page.waitFor(500);
@@ -42,7 +60,7 @@ try {
 
   const chips = await page.$$('.chip');
   expect(chips.length === 4, `应有 4 个玩家 chip，实际 ${chips.length}`);
-  await miniProgram.screenshot({ path: join(SHOT_DIR, '01-players-ready.png') });
+  await shot('01-players-ready.png');
 
   // 名次录入：t1 双上（老王头游、老李二游），老张三、老赵末游
   for (const i of [0, 1, 2, 3]) {
@@ -54,7 +72,7 @@ try {
   expect(previewNum, '录满名次后应出现升级预览条');
   const previewText = await previewNum.text();
   expect(previewText.includes('升 3 级'), `预览应为「升 3 级」，实际「${previewText}」`);
-  await miniProgram.screenshot({ path: join(SHOT_DIR, '02-ranks-filled-preview.png') });
+  await shot('02-ranks-filled-preview.png');
 
   await (await page.$('.actionbar__apply')).tap();
   await page.waitFor(600);
@@ -66,7 +84,7 @@ try {
   const eyebrow = await (await page.$('.board__eyebrow')).text();
   expect(eyebrow.includes('打5'), `eyebrow 应含「打5」，实际「${eyebrow}」`);
   expect(eyebrow.includes('蓝队'), `eyebrow 应标注蓝队的级，实际「${eyebrow}」`);
-  await miniProgram.screenshot({ path: join(SHOT_DIR, '03-applied-board.png') });
+  await shot('03-applied-board.png');
 
   // 历史页（第 1 局 + 逐局排名行）
   page = await miniProgram.navigateTo('/pages/history/history');
@@ -109,7 +127,7 @@ try {
   expect(mvpEl, '通关后应显示本场 MVP');
   const mvpText = await mvpEl.text();
   expect(mvpText.includes('老王'), `MVP 应为全头游的老王，实际「${mvpText}」`);
-  await miniProgram.screenshot({ path: join(SHOT_DIR, '05-victory.png') });
+  await shot('05-victory.png');
 
   // 历史页：本场统计 + 荣誉（≥5 局解锁，吕布=老王）
   page = await miniProgram.navigateTo('/pages/history/history');
@@ -122,7 +140,7 @@ try {
   for (const h of honorTitles) honorTexts.push(await h.text());
   expect(honorTexts.some(t => t.includes('吕布')), `应颁出吕布，实际 ${JSON.stringify(honorTexts)}`);
   expect(honorTexts.every(t => !t.includes('赌')), `荣誉渲染必须走合规别名，实际 ${JSON.stringify(honorTexts)}`);
-  await miniProgram.screenshot({ path: join(SHOT_DIR, '06-history-stats-honors.png') });
+  await shot('06-history-stats-honors.png');
 
   console.log('E2E PASS: 主链路 + 5局通关 + MVP + 统计/荣誉面板 + 排名行 + 会话锁定 全部通过');
   console.log(`screenshots → ${SHOT_DIR}`);
