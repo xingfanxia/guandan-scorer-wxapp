@@ -18,7 +18,7 @@
       <image wx:if="{{avatarUrl}}" class="who__avatar" src="{{avatarUrl}}" />
       <view class="who__id">
         <text class="who__name">{{displayName || '无名牌手'}}</text>
-        <text class="who__sub">{{summary.sessionsPlayed}} 场 · 胜率 {{summary.winRate}}{{boundHandle ? ' · @' + boundHandle : ''}}</text>
+        <text class="who__sub">{{summary.sessionsPlayed}} 场 · 胜率 {{summary.winRate}} · 天梯 {{summary.ladder}}{{boundHandle ? ' · @' + boundHandle : ''}}</text>
       </view>
     </view>
 

@@ -123,6 +123,7 @@
   <view class="nav section">
     <button class="btn btn--ghost nav__btn" hover-class="btn--pressed" bindtap="goHistory">对局历史</button>
     <button class="btn btn--ghost nav__btn" hover-class="btn--pressed" bindtap="goProfile">我的档案</button>
+    <button class="btn btn--ghost nav__btn" hover-class="btn--pressed" bindtap="goPlayers">玩家天梯</button>
     <button wx:if="{{roomCode}}" class="btn btn--ghost nav__btn" hover-class="btn--pressed" bindtap="goRoom">进房间</button>
     <button wx:else class="btn btn--ghost nav__btn" hover-class="btn--pressed" bindtap="onEnterRoomCode">围观别人</button>
   </view>

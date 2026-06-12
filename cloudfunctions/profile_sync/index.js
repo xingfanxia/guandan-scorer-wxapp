@@ -29,6 +29,47 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const MAX_SESSION_HISTORY = 200;
 const MAX_RANK = 8;
 
+// ===== 天梯分（WXAPP-9）：镜像 miniprogram/core/ladder.js —— 改那边记得同步这里 =====
+const LADDER_BASE = 1000;
+const LADDER_TEAM_K = 32;
+const LADDER_PERF_K = 16;
+
+function computeLadderDeltas({ mode, winnerTeam, players }) {
+  const list = Array.isArray(players) ? players : [];
+  const deltas = new Map(list.map(p => [String(p.id), 0]));
+  const t1 = list.filter(p => Number(p.team) === 1);
+  const t2 = list.filter(p => Number(p.team) === 2);
+  if (t1.length === 0 || t2.length === 0 || (winnerTeam !== 1 && winnerTeam !== 2)) return deltas;
+
+  const ratingOf = (p) => (Number.isFinite(Number(p.rating)) ? Number(p.rating) : LADDER_BASE);
+  const avg = (team) => team.reduce((s, p) => s + ratingOf(p), 0) / team.length;
+  const e1 = 1 / (1 + Math.pow(10, (avg(t2) - avg(t1)) / 400));
+  const teamDelta1 = LADDER_TEAM_K * ((winnerTeam === 1 ? 1 : 0) - e1);
+
+  const n = Number(mode) || list.length;
+  const midRank = (n + 1) / 2;
+  for (const p of list) {
+    const teamDelta = Number(p.team) === 1 ? teamDelta1 : -teamDelta1;
+    const avgRanking = Number(p.avgRanking);
+    const perf = Number.isFinite(avgRanking) && avgRanking >= 1 && n > 1
+      ? (midRank - Math.min(avgRanking, n)) / (n - 1)
+      : 0;
+    deltas.set(String(p.id), Math.round(teamDelta + LADDER_PERF_K * perf));
+  }
+  return deltas;
+}
+
+function applyLadderDelta(ladder, delta) {
+  const cur = ladder && typeof ladder === 'object' ? ladder : {};
+  const rating = Math.max(0, Math.round(
+    (Number.isFinite(Number(cur.rating)) ? Number(cur.rating) : LADDER_BASE) + (Number(delta) || 0)
+  ));
+  const sessions = (Number.isFinite(Number(cur.sessions)) ? Number(cur.sessions) : 0) + 1;
+  const peak = Math.max(rating, Number.isFinite(Number(cur.peak)) ? Number(cur.peak) : LADDER_BASE);
+  return { rating, sessions, peak };
+}
+// ===== 天梯分镜像结束 =====
+
 function freshStats() {
   return {
     sessionsPlayed: 0,
@@ -46,6 +87,7 @@ function freshStats() {
     partners: {},
     opponents: {},
     modeBreakdown: { '4P': 0, '6P': 0, '8P': 0 },
+    ladder: { rating: LADDER_BASE, sessions: 0, peak: LADDER_BASE },
     sessionHistory: {},
     votingHistory: {}
   };
@@ -254,6 +296,25 @@ exports.main = async (event) => {
       .map(id => openidByPlayerId.get(Number(id)))
       .filter(Boolean);
 
+    // 天梯分：评分只取服务端 players 文档（client 不可注入）；未绑定玩家按 LADDER_BASE 计入队伍均分
+    const ratingByOpenid = new Map();
+    for (const [openid, entry] of touched) {
+      const ladder = entry.doc.stats.ladder;
+      ratingByOpenid.set(openid, ladder && Number.isFinite(Number(ladder.rating)) ? Number(ladder.rating) : LADDER_BASE);
+    }
+    const avgRankingByPlayerId = new Map(sessions.map(s => [Number(s.playerId), Math.min(MAX_RANK, nonNeg(s.avgRanking))]));
+    const winnerTeam = (snapshot.gameStatus && snapshot.gameStatus.winnerKey) === 't2' ? 2 : 1;
+    const ladderDeltas = computeLadderDeltas({
+      mode: Number(authoritativeMode),
+      winnerTeam,
+      players: snapshotPlayers.map(p => ({
+        id: p.id,
+        team: Number(p.team),
+        rating: openidByPlayerId.has(p.id) ? ratingByOpenid.get(openidByPlayerId.get(p.id)) : undefined,
+        avgRanking: avgRankingByPlayerId.has(Number(p.id)) ? avgRankingByPlayerId.get(Number(p.id)) : null
+      }))
+    });
+
     for (const s of sessions) {
       const openid = openidByPlayerId.get(Number(s.playerId));
       const entry = touched.get(openid);
@@ -262,7 +323,11 @@ exports.main = async (event) => {
         partnerOpenids: mapIds(s.partnerPlayerIds),
         opponentOpenids: mapIds(s.opponentPlayerIds)
       };
-      if (applySession(entry.doc.stats, filtered, keys.gameKey, authoritativeMode)) applied++; else skipped++;
+      if (applySession(entry.doc.stats, filtered, keys.gameKey, authoritativeMode)) {
+        applied++;
+        // 与战绩同一道 gameKey 幂等闸：只有新入库的场次才动天梯分
+        entry.doc.stats.ladder = applyLadderDelta(entry.doc.stats.ladder, ladderDeltas.get(String(s.playerId)) || 0);
+      } else skipped++;
       const identity = identityByOpenid.get(openid) || {};
       if (identity.nickname) entry.doc.displayName = String(identity.nickname).slice(0, 32);
       if (identity.avatarUrl) entry.doc.avatarUrl = String(identity.avatarUrl).slice(0, 512);

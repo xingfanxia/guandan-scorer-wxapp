@@ -3,7 +3,8 @@
     "pages/index/index",
     "pages/room/room",
     "pages/history/history",
-    "pages/profile/profile"
+    "pages/profile/profile",
+    "pages/players/players"
   ],
   "darkmode": true,
   "themeLocation": "theme.json",

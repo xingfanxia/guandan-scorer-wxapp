@@ -529,6 +529,10 @@ Page({
     wx.navigateTo({ url: '/pages/profile/profile' });
   },
 
+  goPlayers() {
+    wx.navigateTo({ url: '/pages/players/players' });
+  },
+
   goRoom() {
     const code = getOwnerSession().getCode();
     if (code) wx.navigateTo({ url: `/pages/room/room?code=${code}` });
