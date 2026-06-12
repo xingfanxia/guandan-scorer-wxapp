@@ -5,8 +5,11 @@
     玩家池是空的 —— 等房主导入 web 版玩家
   </view>
 
+  <!-- 读取详情时整列表让位给 loading 态（点击反馈 + 防重复点） -->
+  <view class="card empty" wx:if="{{detailLoading}}">读取档案…</view>
+
   <!-- 天梯榜列表 -->
-  <view class="card" wx:if="{{!loading && rows.length > 0 && !detail}}">
+  <view class="card" wx:if="{{!loading && rows.length > 0 && !detail && !detailLoading}}">
     <view class="lad__head">
       <text class="lad__cell lad__cell--rank">#</text>
       <text class="lad__cell lad__cell--name">玩家</text>
@@ -28,12 +31,10 @@
         <text class="lad__handle">@{{p.handle}}{{p.bound ? '' : ' · 未绑定'}}</text>
       </view>
       <text class="lad__cell lad__num">{{p.ladderText}}</text>
-      <text class="lad__cell lad__num">{{p.sessionsPlayed + p.wxSessions}}</text>
+      <text class="lad__cell lad__num">{{p.totalSessions}}</text>
     </view>
     <view class="lad__hint">点玩家看完整档案 · 带 * 的是按 web 历史折算的起评分，打过小程序场后开始实结</view>
   </view>
-
-  <view class="card empty" wx:if="{{detailLoading}}">读取档案…</view>
 
   <!-- 玩家详情 -->
   <block wx:if="{{detail && !detailLoading}}">

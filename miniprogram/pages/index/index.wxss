@@ -4,12 +4,18 @@
   margin-top: var(--s3);
 }
 
+/* 离屏画布：显示尺寸无所谓（导出走 backing store，由 onSavePoster 按布局动态设置） */
 .poster-canvas {
   position: fixed;
   left: -9999rpx;
   top: 0;
-  width: 750px;
-  height: 1100px;
+  width: 600px;
+  height: 800px;
+}
+
+/* 微信原生 button 默认定宽会把长文案裁成「战绩入库（认领」—— 全宽展开（同 players 页 .lad__back 范式） */
+.board__advance {
+  width: 100%;
 }
 
 .board__mvp {

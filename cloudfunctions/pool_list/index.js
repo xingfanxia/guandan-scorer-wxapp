@@ -19,7 +19,7 @@ function seedLadderRating(webStats) {
     ? (4.5 - Math.min(avgRank, 8)) / 3.5
     : 0;
   const conf = Math.min(s, 20) / 20;
-  const rating = Math.round(LADDER_BASE + conf * (500 * (winRate - 0.5) + 100 * rankNorm));
+  const rating = Math.round(LADDER_BASE + conf * (250 * rankNorm + 300 * (winRate - 0.5)));
   return Math.max(700, Math.min(1300, rating));
 }
 
@@ -57,7 +57,11 @@ exports.main = async () => {
         boundToMe: Boolean(p.boundOpenid && p.boundOpenid === OPENID),
         ladder: earned ? Number(ladder.rating) : seedLadderRating(p.webStats),
         ladderProvisional: !earned,
-        wxSessions: stats ? Number(stats.sessionsPlayed) || 0 : 0
+        wxSessions: stats ? Number(stats.sessionsPlayed) || 0 : 0,
+        // 绑定后 players.sessionsPlayed 已含 web 并入值 —— 直接用，别再和 webStats 相加
+        totalSessions: stats && Number(stats.sessionsPlayed) > 0
+          ? Number(stats.sessionsPlayed)
+          : (p.webStats && Number(p.webStats.sessionsPlayed)) || 0
       };
     });
     // 天梯榜序：按分数（起评分也参与），同分按 web 场次

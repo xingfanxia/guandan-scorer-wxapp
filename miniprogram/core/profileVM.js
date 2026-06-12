@@ -3,7 +3,8 @@
  * 荣誉经合规别名 + caption；成就读时派生（与 web 同一套 vendored 逻辑），不落库。
  */
 import { checkAchievements, ACHIEVEMENTS } from '../shared-logic/achievementLogic.js';
-import { displayHonorTitle, displayHonorCaption } from './honorDisplay.js';
+import { normalizeHonorCounter } from '../shared-logic/honorCatalog.js';
+import { displayHonorTitle, displayHonorCaption, displayAchievementBadge } from './honorDisplay.js';
 
 export const LADDER_DEFAULT = { rating: 1000, sessions: 0, peak: 1000 };
 
@@ -29,7 +30,9 @@ export function buildProfileVM(stats) {
     { label: '天梯场次', value: String(ladder.sessions) }
   ];
 
-  const honorRows = Object.entries(stats.honors || {})
+  // normalizeHonorCounter：web 迁移来的 legacy 荣誉名（小丑/连胜王…）归一到现行 16 项，
+  // 保证每行都有 caption、同义项计数不分裂
+  const honorRows = Object.entries(normalizeHonorCounter(stats.honors || {}))
     .filter(([, count]) => Number(count) > 0)
     .map(([title, count]) => ({
       title: displayHonorTitle(title),
@@ -43,7 +46,7 @@ export function buildProfileVM(stats) {
   const earned = checkAchievements({ ...stats, sessionWinRate: winRate }, last || undefined) || [];
   const achievementRows = earned
     .filter((id) => ACHIEVEMENTS[id])
-    .map((id) => ({ id, name: ACHIEVEMENTS[id].name, badge: ACHIEVEMENTS[id].badge, desc: ACHIEVEMENTS[id].desc }));
+    .map((id) => ({ id, name: ACHIEVEMENTS[id].name, badge: displayAchievementBadge(ACHIEVEMENTS[id].badge), desc: ACHIEVEMENTS[id].desc }));
 
   return {
     summary: {

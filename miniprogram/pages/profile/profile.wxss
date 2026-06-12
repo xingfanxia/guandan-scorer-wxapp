@@ -82,11 +82,11 @@
   justify-content: space-between;
   align-items: center;
   min-height: var(--touch-min);
-  border-top: 1rpx solid var(--hairline);
 }
 
-.honor:first-of-type {
-  border-top: none;
+/* :first-of-type 按标签类型匹配，view 同级里永不生效 —— 用相邻兄弟画分隔线 */
+.honor + .honor {
+  border-top: 1rpx solid var(--hairline);
 }
 
 .honor__main {

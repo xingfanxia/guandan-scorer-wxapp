@@ -17,10 +17,10 @@
  * 字段名对齐 web 版 player:handle schema，使 vendored checkAchievements 可直接
  * 吃 stats 推导成就（成就读时派生，不落库）。
  *
- * event: { code }   // 就这一个——其余服务端自取
- *        + sessions: [{ openid, mode, teamWon, gamesInSession, avgRanking,
- *            firstPlaces, lastPlaces, partnerOpenids, opponentOpenids,
- *            honorsEarned }]（房主侧 buildProfileSessions 产物，服务端过滤）
+ * event: { code, sessions }
+ *   sessions: [{ playerId, teamWon, gamesInSession, avgRanking, firstPlaces,
+ *     lastPlaces, partnerPlayerIds, opponentPlayerIds, honorsEarned, handle? }]
+ *   （房主侧 buildProfileSessions 产物，playerId 维度 —— openid 解析全在服务端）
  */
 const cloud = require('wx-server-sdk');
 
@@ -31,8 +31,10 @@ const MAX_RANK = 8;
 
 // ===== 天梯分（WXAPP-9）：镜像 miniprogram/core/ladder.js —— 改那边记得同步这里 =====
 const LADDER_BASE = 1000;
-const LADDER_TEAM_K = 32;
-const LADDER_PERF_K = 16;
+const LADDER_TEAM_K = 24;
+const LADDER_PERF_K = 28;        // 个人表现权重 > 胜负（2026-06-12 用户调参）
+const LADDER_WINNER_FLOOR = 1;
+const LADDER_LOSER_GAIN_CAP = 6; // 输局高光最多 +6
 
 function computeLadderDeltas({ mode, winnerTeam, players }) {
   const list = Array.isArray(players) ? players : [];
@@ -49,12 +51,15 @@ function computeLadderDeltas({ mode, winnerTeam, players }) {
   const n = Number(mode) || list.length;
   const midRank = (n + 1) / 2;
   for (const p of list) {
+    const won = Number(p.team) === winnerTeam;
     const teamDelta = Number(p.team) === 1 ? teamDelta1 : -teamDelta1;
     const avgRanking = Number(p.avgRanking);
     const perf = Number.isFinite(avgRanking) && avgRanking >= 1 && n > 1
       ? (midRank - Math.min(avgRanking, n)) / (n - 1)
       : 0;
-    deltas.set(String(p.id), Math.round(teamDelta + LADDER_PERF_K * perf));
+    let delta = Math.round(teamDelta + LADDER_PERF_K * perf);
+    delta = won ? Math.max(LADDER_WINNER_FLOOR, delta) : Math.min(LADDER_LOSER_GAIN_CAP, delta);
+    deltas.set(String(p.id), delta);
   }
   return deltas;
 }
@@ -79,7 +84,7 @@ function seedLadderRating(webStats) {
     ? (4.5 - Math.min(avgRank, 8)) / 3.5
     : 0;
   const conf = Math.min(s, 20) / 20;
-  const rating = Math.round(LADDER_BASE + conf * (500 * (winRate - 0.5) + 100 * rankNorm));
+  const rating = Math.round(LADDER_BASE + conf * (250 * rankNorm + 300 * (winRate - 0.5)));
   return Math.max(700, Math.min(1300, rating));
 }
 // ===== 天梯分镜像结束 =====
@@ -332,7 +337,11 @@ exports.main = async (event) => {
       return seedLadderRating(webStatsByPlayerId.get(playerId));
     };
     const avgRankingByPlayerId = new Map(sessions.map(s => [Number(s.playerId), Math.min(MAX_RANK, nonNeg(s.avgRanking))]));
-    const winnerTeam = (snapshot.gameStatus && snapshot.gameStatus.winnerKey) === 't2' ? 2 : 1;
+    // winnerKey 容错对齐 deriveKeys：gameStatus 缺失时回退末局 winKey；都非法 → winnerTeam=0，
+    // computeLadderDeltas 退化为全 0（宁可这场不动天梯，不能错判方向）
+    const lastEntry = (Array.isArray(snapshot.history) && snapshot.history[snapshot.history.length - 1]) || null;
+    const winnerKey = (snapshot.gameStatus && snapshot.gameStatus.winnerKey) || (lastEntry && lastEntry.winKey);
+    const winnerTeam = winnerKey === 't1' ? 1 : winnerKey === 't2' ? 2 : 0;
     const ladderDeltas = computeLadderDeltas({
       mode: Number(authoritativeMode),
       winnerTeam,

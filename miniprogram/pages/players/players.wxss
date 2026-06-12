@@ -14,12 +14,12 @@
 }
 
 .lad__row {
-  border-top: 1rpx solid var(--hairline);
   padding: var(--s1) 0;
 }
 
-.lad__row:first-of-type {
-  border-top: none;
+/* :first-of-type 按标签类型匹配，view 同级里永不生效 —— 用相邻兄弟画分隔线 */
+.lad__row + .lad__row {
+  border-top: 1rpx solid var(--hairline);
 }
 
 .lad__row--pressed {
@@ -131,11 +131,10 @@
   justify-content: space-between;
   align-items: center;
   min-height: var(--touch-min);
-  border-top: 1rpx solid var(--hairline);
 }
 
-.honor:first-of-type {
-  border-top: none;
+.honor + .honor {
+  border-top: 1rpx solid var(--hairline);
 }
 
 .honor__main {

@@ -1,24 +1,27 @@
 /**
  * 天梯分（WXAPP-9）—— 简化 ELO，按「场」结算。spec 见 docs/PLAN.md WXAPP-9。
  *
- * 因素：己队均分 vs 对队均分（强队赢弱队加分少、爆冷多得）+ 个人场内表现
- * （场均名次相对中位的偏移，同队内拉开差距）。
+ * 权重哲学（2026-06-12 用户调参）：个人表现 > 胜负 —— 输了但个人名次好要被激励
+ * （小加分或只扣一点点），赢了躺平的混子保底 +1 不白嫖大分。
+ * 队伍项：己队均分 vs 对队均分的期望胜率（强队赢弱队加分少、爆冷多得）。
  *
- * 纯函数，服务端权威实现在 cloudfunctions/profile_sync 里 CJS 镜像同算法
- * （同 voteSessionKey 镜像先例 —— 改这里记得同步那边）。
+ * 纯函数，服务端权威实现在 cloudfunctions/profile_sync（含 pool_bind/pool_list 的
+ * seedLadderRating）里 CJS 镜像同算法 —— 改这里记得同步那边。
  */
 
 export const LADDER_BASE = 1000;
-export const LADDER_TEAM_K = 32; // 队伍胜负增量上限
-export const LADDER_PERF_K = 16; // 个人表现增量系数（实际区间约 ±8）
+export const LADDER_TEAM_K = 24;       // 队伍胜负项上限
+export const LADDER_PERF_K = 28;       // 个人表现项系数（实际区间约 ±14，> 队伍项）
+export const LADDER_WINNER_FLOOR = 1;  // 胜方保底
+export const LADDER_LOSER_GAIN_CAP = 6; // 负方加分封顶（输局高光最多 +6）
 
 /**
  * 一场的天梯增量。
  * @param {Object} input
  * @param {number} input.mode - 人数（4/6/8），名次中位与表现归一用
- * @param {1|2} input.winnerTeam - 获胜队
+ * @param {1|2} input.winnerTeam - 获胜队（非法值 → 全 0，宁可不动不可错判方向）
  * @param {Array<{id: number|string, team: 1|2, rating?: number, avgRanking?: number|null}>} input.players
- *   全部上场玩家：rating 缺省按 LADDER_BASE 计入队伍均分；avgRanking 为 null/缺省时该人表现增量为 0
+ *   全部上场玩家：rating 缺省按 LADDER_BASE 计入队伍均分；avgRanking 为 null/缺省时该人表现项为 0
  * @returns {Map<string, number>} playerId(String) → 整数增量；输入不成立（任一队为空）→ 全 0
  */
 export function computeLadderDeltas({ mode, winnerTeam, players }) {
@@ -39,29 +42,32 @@ export function computeLadderDeltas({ mode, winnerTeam, players }) {
   // E1 = 队1 期望胜率；强队期望高 → 赢了 (S−E) 小 → 加分少
   const e1 = 1 / (1 + Math.pow(10, (avg2 - avg1) / 400));
   const teamDelta1 = LADDER_TEAM_K * ((winnerTeam === 1 ? 1 : 0) - e1);
-  const teamDelta2 = -teamDelta1; // 零和
 
   const n = Number(mode) || list.length;
   const midRank = (n + 1) / 2;
 
   for (const p of list) {
-    const teamDelta = Number(p.team) === 1 ? teamDelta1 : teamDelta2;
+    const won = Number(p.team) === winnerTeam;
+    const teamDelta = Number(p.team) === 1 ? teamDelta1 : -teamDelta1;
     const avgRanking = Number(p.avgRanking);
     // 表现偏移 ∈ [−0.5, +0.5]（场均第 1 名 → +0.5；垫底 → −0.5）
     const perf = Number.isFinite(avgRanking) && avgRanking >= 1 && n > 1
       ? (midRank - Math.min(avgRanking, n)) / (n - 1)
       : 0;
-    deltas.set(String(p.id), Math.round(teamDelta + LADDER_PERF_K * perf));
+    let delta = Math.round(teamDelta + LADDER_PERF_K * perf);
+    // 胜方保底（赢了不倒扣）；负方高光封顶（输局打神了小加分，但不超过 +6）
+    delta = won ? Math.max(LADDER_WINNER_FLOOR, delta) : Math.min(LADDER_LOSER_GAIN_CAP, delta);
+    deltas.set(String(p.id), delta);
   }
   return deltas;
 }
 
 /**
- * 起评分：从 web 版历史战绩折算首次天梯分（用户 2026-06-12 拍板）。
- * 起评分 = 1000 + 置信度×(500×(胜率−0.5) + 100×(4.5−场均名次)/3.5)，钳 [700,1300]；
+ * 起评分：从 web 版历史战绩折算首次天梯分（同口径：名次为主、胜负为辅）。
+ * 起评分 = 1000 + 置信度×(250×(4.5−场均名次)/3.5 + 300×(胜率−0.5))，钳 [700,1300]；
  * 置信度 = min(场次,20)/20 —— 场次少贴 1000 起步。只在 ladder.sessions===0 时用，
  * 永不覆盖已挣的分。场均名次按 8 人局中位 4.5 归一（web 历史以 8 人局为主，
- * 混入 4/6 人局会被 100 的低权重钳住失真）。
+ * 混入 4/6 人局的失真被权重和钳制兜住）。
  * @param {{sessionsPlayed?: number, sessionsWon?: number, avgRankingPerSession?: number}} webStats
  */
 export function seedLadderRating(webStats) {
@@ -74,7 +80,7 @@ export function seedLadderRating(webStats) {
     ? (4.5 - Math.min(avgRank, 8)) / 3.5
     : 0;
   const conf = Math.min(s, 20) / 20;
-  const rating = Math.round(LADDER_BASE + conf * (500 * (winRate - 0.5) + 100 * rankNorm));
+  const rating = Math.round(LADDER_BASE + conf * (250 * rankNorm + 300 * (winRate - 0.5)));
   return Math.max(700, Math.min(1300, rating));
 }
 

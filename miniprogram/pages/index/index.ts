@@ -477,10 +477,20 @@ Page({
     return (r.ok && r.pool && r.pool.tagline) || '';
   },
 
+  // 在途守卫标记（实例字段，不进 data —— 不需要驱动渲染）
+  posterBusy: false,
+
   /** 生成战绩长图（对齐 web 手机版导出的信息密度）并存相册 */
   async onSavePoster() {
+    // 在途守卫：生成期间重复点会并发两条 canvas/云调用链
+    if (this.posterBusy) return;
+    this.posterBusy = true;
+    const done = () => {
+      this.posterBusy = false;
+      wx.hideLoading();
+    };
     const s = getStore().getState();
-    wx.showLoading({ title: '生成长图…' });
+    wx.showLoading({ title: '生成长图…', mask: true });
     const [votes, mvpTagline] = await Promise.all([
       this.collectPosterVotes(s).catch(() => null),
       this.collectMvpTagline(s).catch(() => '')
@@ -495,44 +505,51 @@ Page({
       .select('#posterCanvas')
       .fields({ node: true })
       .exec((res) => {
-        const canvas = res?.[0]?.node;
-        if (!canvas) {
-          wx.hideLoading();
-          wx.showToast({ title: '画布初始化失败', icon: 'none' });
-          return;
-        }
-        // 长图高度 × dpr 可能撞老设备 canvas 尺寸上限（≈8192）—— 超限降为 1x 导出
-        const dpr = Math.min((wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()).pixelRatio || 2, 2);
-        const scale = layout.height * dpr > 8000 ? 1 : dpr;
-        canvas.width = layout.width * scale;
-        canvas.height = layout.height * scale;
-        const ctx = canvas.getContext('2d');
-        ctx.scale(scale, scale);
-        paintPoster(ctx, layout);
-
-        wx.canvasToTempFilePath({
-          canvas,
-          destWidth: layout.width * scale,
-          destHeight: layout.height * scale,
-          success: (file) => {
-            wx.saveImageToPhotosAlbum({
-              filePath: file.tempFilePath,
-              success: () => {
-                wx.hideLoading();
-                wx.showToast({ title: '海报已存相册', icon: 'none' });
-              },
-              fail: (err) => {
-                wx.hideLoading();
-                const denied = String(err.errMsg || '').includes('auth');
-                wx.showToast({ title: denied ? '需要相册权限 —— 在设置里打开' : '保存失败', icon: 'none' });
-              }
-            });
-          },
-          fail: () => {
-            wx.hideLoading();
-            wx.showToast({ title: '海报生成失败', icon: 'none' });
+        try {
+          const canvas = res?.[0]?.node;
+          if (!canvas) {
+            done();
+            wx.showToast({ title: '画布初始化失败', icon: 'none' });
+            return;
           }
-        });
+          // 长图高度 × dpr 可能撞老设备 canvas 尺寸上限（≈8192）—— 超限降为 1x 导出
+          const dpr = Math.min((wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()).pixelRatio || 2, 2);
+          const scale = layout.height * dpr > 8000 ? 1 : dpr;
+          canvas.width = layout.width * scale;
+          canvas.height = layout.height * scale;
+          const ctx = canvas.getContext('2d');
+          ctx.scale(scale, scale);
+          paintPoster(ctx, layout);
+
+          wx.canvasToTempFilePath({
+            canvas,
+            destWidth: layout.width * scale,
+            destHeight: layout.height * scale,
+            success: (file) => {
+              wx.saveImageToPhotosAlbum({
+                filePath: file.tempFilePath,
+                success: () => {
+                  done();
+                  wx.showToast({ title: '长图已存相册', icon: 'none' });
+                },
+                fail: (err) => {
+                  done();
+                  const denied = String(err.errMsg || '').includes('auth');
+                  wx.showToast({ title: denied ? '需要相册权限 —— 在设置里打开' : '保存失败', icon: 'none' });
+                }
+              });
+            },
+            fail: () => {
+              done();
+              wx.showToast({ title: '长图生成失败', icon: 'none' });
+            }
+          });
+        } catch (err) {
+          // 回调内同步异常（canvas API 不可用等）不能让 loading 永挂
+          done();
+          console.error('[poster] 生成异常:', err);
+          wx.showToast({ title: '长图生成失败', icon: 'none' });
+        }
       });
   },
 

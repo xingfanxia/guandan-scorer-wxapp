@@ -1,5 +1,7 @@
 /**
  * profile_get — 读自己的玩家档案（openid 维度；走函数绕开集合读权限）。
+ * partners/opponents 以**别人的** openid 为 key —— 即使是本人端点也剥离
+ * （第三方 openid 不下发任何客户端；2026-06-12 review 修复）。
  */
 const cloud = require('wx-server-sdk');
 
@@ -12,5 +14,10 @@ exports.main = async () => {
   const db = cloud.database();
   const res = await db.collection('players').doc(OPENID).get().catch(() => null);
   if (!res || !res.data) return { ok: true, openid: OPENID, profile: null };
-  return { ok: true, openid: OPENID, profile: res.data };
+  const profile = { ...res.data };
+  if (profile.stats && typeof profile.stats === 'object') {
+    const { partners, opponents, ...safe } = profile.stats;
+    profile.stats = safe;
+  }
+  return { ok: true, openid: OPENID, profile };
 };

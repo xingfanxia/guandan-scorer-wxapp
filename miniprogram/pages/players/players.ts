@@ -12,6 +12,7 @@ interface PoolRow {
   ladder: number;
   ladderProvisional: boolean;
   wxSessions: number;
+  totalSessions: number;
 }
 
 interface DetailVM {
@@ -49,14 +50,16 @@ Page({
       }));
       this.setData({ loading: false, rows });
     }).catch(() => {
-      this.setData({ loading: false, rows: [] });
+      // 失败保留已有列表（onShow 每次都会重拉，瞬时故障不该把好数据闪成空池态）
+      this.setData({ loading: false });
       wx.showToast({ title: '玩家池读取失败', icon: 'none' });
     });
   },
 
   onTapPlayer(e: WechatMiniprogram.TouchEvent) {
     const handle = String(e.currentTarget.dataset.handle || '');
-    if (!handle) return;
+    // 在途守卫：慢网下连点两个玩家会并发两个请求，后返回的覆盖先返回的（乱序展示错人）
+    if (!handle || this.data.detailLoading) return;
     this.setData({ detailLoading: true });
     wx.cloud.callFunction({ name: 'profile_get_by_handle', data: { handle } }).then((res) => {
       const r = (res.result || {}) as {

@@ -17,7 +17,7 @@ const HONOR_CAPTIONS = {
   '波动王': '全场名次震荡 · Volatility',
   '奋斗王': '前段到后段明显变强 · Climber',
   '翻车王': '上位区坠入底部 · Crash Arc',
-  '赌徒': '头游和末游都多 · High Stakes',
+  '赌徒': '头游和末游都多 · Daredevil',
   '大满贯': '全场名次图鉴 · Grand Slam',
   '连段王': '连续压在上半区 · Top-Half Streak',
   '团队中轴': '持续强于队友均值 · Team Anchor',
@@ -31,4 +31,11 @@ const HONOR_CAPTIONS = {
 
 export function displayHonorCaption(title) {
   return HONOR_CAPTIONS[title] || '';
+}
+
+/** 成就徽章合规别名：vendored achievementLogic 的「天选之子」badge 是 🎲（赌具图形）—— UI 出口替换 */
+const BADGE_ALIAS = { '🎲': '🌟' };
+
+export function displayAchievementBadge(badge) {
+  return BADGE_ALIAS[badge] || badge;
 }

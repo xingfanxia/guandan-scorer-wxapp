@@ -26,6 +26,8 @@ function getJson(url) {
   });
 }
 
+const LADDER_BASE = 1000;
+
 function freshStats() {
   return {
     sessionsPlayed: 0,
@@ -43,9 +45,25 @@ function freshStats() {
     partners: {},
     opponents: {},
     modeBreakdown: { '4P': 0, '6P': 0, '8P': 0 },
+    ladder: { rating: LADDER_BASE, sessions: 0, peak: LADDER_BASE },
     sessionHistory: {},
     votingHistory: {}
   };
+}
+
+// 镜像 miniprogram/core/ladder.js seedLadderRating —— 改那边记得同步这里
+function seedLadderRating(webStats) {
+  const s = Math.max(0, Number(webStats && webStats.sessionsPlayed) || 0);
+  if (s <= 0) return LADDER_BASE;
+  const won = Math.min(s, Math.max(0, Number(webStats.sessionsWon) || 0));
+  const winRate = won / s;
+  const avgRank = Number(webStats.avgRankingPerSession);
+  const rankNorm = Number.isFinite(avgRank) && avgRank >= 1
+    ? (4.5 - Math.min(avgRank, 8)) / 3.5
+    : 0;
+  const conf = Math.min(s, 20) / 20;
+  const rating = Math.round(LADDER_BASE + conf * (250 * rankNorm + 300 * (winRate - 0.5)));
+  return Math.max(700, Math.min(1300, rating));
 }
 
 exports.main = async (event) => {
@@ -113,6 +131,12 @@ exports.main = async (event) => {
     }
     doc.stats.webImport = { handle, importedAt: new Date().toISOString() };
     if (!doc.displayName && pool.data.displayName) doc.displayName = pool.data.displayName;
+    // 天梯起评分：没挣过分才垫底（webStats 折算），挣过的分永不覆盖
+    const lad = doc.stats.ladder;
+    if (!lad || !Number(lad.sessions)) {
+      const seed = seedLadderRating(w);
+      doc.stats.ladder = { rating: seed, sessions: 0, peak: seed };
+    }
   }
 
   try {
