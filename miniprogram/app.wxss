@@ -1,0 +1,9 @@
+/* 全局样式 — WXAPP-2 起按设计稿填充 */
+page {
+  background: #f6f6f6;
+  font-size: 28rpx;
+}
+
+.page {
+  padding: 32rpx;
+}
