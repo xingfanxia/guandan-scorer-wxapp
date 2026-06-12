@@ -1,7 +1,9 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildBoardVM, buildHistoryRows } from '../miniprogram/core/viewModel.js';
+import { buildBoardVM, buildHistoryRows, buildSessionStatsVM } from '../miniprogram/core/viewModel.js';
 import { buildRoomSnapshot } from '../miniprogram/core/roomSync.js';
+import { displayHonorCaption } from '../miniprogram/core/honorDisplay.js';
+import { HONOR_TITLES_BY_KEY } from '../miniprogram/shared-logic/honorCatalog.js';
 
 const baseState = {
   mode: '4',
@@ -99,5 +101,32 @@ describe('viewModel.buildHistoryRows — 逐局全员排名行（web 组合列�
     ]);
     assert.equal(rows[1].rankingLine, '1.🐸超  2.🍎塔  3.🐱姐  4.🐢大');
     assert.equal(rows[0].rankingLine, '');
+  });
+});
+
+describe('viewModel.buildSessionStatsVM — 荣誉行带 caption（用户 2026-06-12 反馈回归）', () => {
+  it('每条荣誉行有非空 caption；16 个荣誉标题在 honorDisplay 全部有 caption', () => {
+    for (const title of Object.values(HONOR_TITLES_BY_KEY)) {
+      assert.ok(displayHonorCaption(title).length > 0, `荣誉「${title}」缺 caption`);
+      assert.ok(!displayHonorCaption(title).includes('赌'), `caption 出现「赌」：${title}`);
+    }
+
+    const P = (id, team) => ({ id, name: `玩家${id}`, emoji: '🙂', team });
+    const players = [P(1, 1), P(2, 1), P(3, 2), P(4, 2)];
+    const ranks = {};
+    players.forEach((p, i) => { ranks[i + 1] = p; });
+    const state = {
+      mode: '4',
+      players,
+      teamNames: { t1: '蓝队', t2: '红队' },
+      teamLevels: { t1: 'A', t2: 'K' },
+      gameStatus: { ended: true, winnerKey: 't1', winnerName: '蓝队' },
+      history: Array.from({ length: 5 }, () => ({ winKey: 't1', mode: '4', playerRankings: ranks }))
+    };
+    const vm = buildSessionStatsVM(state);
+    assert.ok(vm.honorRows.length > 0);
+    for (const row of vm.honorRows) {
+      assert.ok(typeof row.caption === 'string' && row.caption.length > 0, `荣誉行「${row.title}」caption 为空`);
+    }
   });
 });

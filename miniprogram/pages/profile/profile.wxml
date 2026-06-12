@@ -37,7 +37,10 @@
     <view class="card section" wx:if="{{honorRows.length > 0}}">
       <view class="section__title">荣誉</view>
       <view class="honor" wx:for="{{honorRows}}" wx:key="title">
-        <text class="honor__title">{{item.title}}</text>
+        <view class="honor__main">
+          <text class="honor__title">{{item.title}}</text>
+          <text class="honor__caption" wx:if="{{item.caption}}">{{item.caption}}</text>
+        </view>
         <text class="honor__count">×{{item.count}}</text>
       </view>
     </view>

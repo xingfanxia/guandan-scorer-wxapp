@@ -89,9 +89,22 @@
   border-top: none;
 }
 
+.honor__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2rpx;
+  min-width: 0;
+  padding: var(--s1) 0;
+}
+
 .honor__title {
   font-size: var(--font-body);
   font-weight: 600;
+}
+
+.honor__caption {
+  font-size: var(--font-label);
+  color: var(--text-secondary);
 }
 
 .honor__count {

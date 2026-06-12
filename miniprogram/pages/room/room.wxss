@@ -276,6 +276,14 @@
   justify-content: space-between;
   align-items: center;
   min-height: 64rpx;
+  padding: var(--s1) 0;
+}
+
+.honor-line__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2rpx;
+  min-width: 0;
 }
 
 .honor-line__title {
@@ -284,6 +292,13 @@
   color: var(--gold-a);
 }
 
+.honor-line__caption {
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+}
+
 .honor-line__holder {
   font-size: var(--font-body);
+  flex-shrink: 0;
+  margin-left: var(--s2);
 }

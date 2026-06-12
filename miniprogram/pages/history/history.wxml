@@ -25,7 +25,10 @@
     <view class="stats__title">本场荣誉</view>
     <block wx:if="{{stats.honorsUnlocked && stats.honorRows.length > 0}}">
       <view class="honor-line" wx:for="{{stats.honorRows}}" wx:for-item="h" wx:key="title">
-        <text class="honor-line__title">{{h.title}}</text>
+        <view class="honor-line__main">
+          <text class="honor-line__title">{{h.title}}</text>
+          <text class="honor-line__caption" wx:if="{{h.caption}}">{{h.caption}}</text>
+        </view>
         <text class="honor-line__holder">{{h.emoji}} {{h.name}}</text>
       </view>
     </block>

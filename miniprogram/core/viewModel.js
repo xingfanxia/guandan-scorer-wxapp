@@ -1,6 +1,6 @@
 /** 纯展示派生（Node 可测）：index / room / history 三页共用，避免文案逻辑分叉。 */
 import { aggregateSession, computeSessionHonors } from './victoryStats.js';
-import { displayHonorTitle } from './honorDisplay.js';
+import { displayHonorTitle, displayHonorCaption } from './honorDisplay.js';
 
 /**
  * 本场统计面板 VM（history / room 共用）：
@@ -27,7 +27,7 @@ export function buildSessionStatsVM(state) {
     const p = agg.players.find(x => x.id === Number(pid));
     if (!p) continue;
     for (const t of titles) {
-      honorRows.push({ title: displayHonorTitle(t), emoji: p.emoji, name: p.name });
+      honorRows.push({ title: displayHonorTitle(t), caption: displayHonorCaption(t), emoji: p.emoji, name: p.name });
     }
   }
 

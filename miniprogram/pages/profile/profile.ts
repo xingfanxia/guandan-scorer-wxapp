@@ -1,6 +1,6 @@
 // 玩家档案：openid 维度战绩 + 荣誉（合规别名渲染）+ 成就（读时派生，不落库）
 import { checkAchievements, ACHIEVEMENTS, ACHIEVEMENT_COUNT } from '../../shared-logic/achievementLogic.js';
-import { displayHonorTitle } from '../../core/honorDisplay.js';
+import { displayHonorTitle, displayHonorCaption } from '../../core/honorDisplay.js';
 
 interface ProfileStats {
   sessionsPlayed: number;
@@ -106,7 +106,11 @@ Page({
 
       const honorRows = Object.entries(stats.honors || {})
         .filter(([, count]) => Number(count) > 0)
-        .map(([title, count]) => ({ title: displayHonorTitle(title), count: Number(count) }))
+        .map(([title, count]) => ({
+          title: displayHonorTitle(title),
+          caption: displayHonorCaption(title),
+          count: Number(count)
+        }))
         .sort((a, b) => b.count - a.count);
 
       // 成就：读时派生（与 web 同一套 vendored 逻辑），lastSession 取最近一场

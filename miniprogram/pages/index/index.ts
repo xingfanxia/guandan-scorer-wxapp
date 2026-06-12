@@ -4,7 +4,8 @@ import { getOwnerSession } from '../../core/ownerRoom.js';
 import { buildBoardVM } from '../../core/viewModel.js';
 import { computeSessionMvp } from '../../core/victoryStats.js';
 import { buildProfileSessions } from '../../core/profileSession.js';
-import { drawPoster, POSTER_W, POSTER_H } from '../../core/poster.js';
+import { buildPosterLayout, paintPoster } from '../../core/poster.js';
+import { deriveVoteSessionKey } from '../../shared-logic/voteSessionKey.js';
 
 const EMOJI_POOL = ['🐶', '🐱', '🐭', '🐰', '🦊', '🐻', '🐼', '🐯'];
 
@@ -435,10 +436,46 @@ Page({
     }
   },
 
-  /** 生成战绩海报并存相册（canvas 2d 纯文字构图，合规安全） */
-  onSavePoster() {
+  /** 观众投票数据（海报用）：房主读自己房间的 voteEpoch → 派生 voteKey → vote_tally */
+  async collectPosterVotes(s: ReturnType<ReturnType<typeof getStore>['getState']>) {
+    const code = getOwnerSession().getCode();
+    if (!code || !s.gameStatus?.ended || !wx.cloud) return null;
+    const doc = await wx.cloud.database().collection('rooms').doc(code).get();
+    const voteEpoch = Number((doc.data as { voteEpoch?: number }).voteEpoch || 0);
+    const key = deriveVoteSessionKey({
+      roomCode: code,
+      gameStatus: s.gameStatus,
+      history: s.history,
+      finishedAt: null,
+      endGameVotesHistory: new Array(voteEpoch).fill(0)
+    });
+    if (!key) return null;
+    const res = await wx.cloud.callFunction({ name: 'vote_tally', data: { code, sessionKey: key } });
+    const r = (res.result || {}) as { ok: boolean; counts?: { mvp: Record<string, number>; burden: Record<string, number> } };
+    if (!r.ok || !r.counts) return null;
+    const byId = new Map<string, { emoji: string; name: string }>();
+    for (const p of s.players) byId.set(String(p.id), p);
+    const rows = (m: Record<string, number>) => Object.entries(m || {})
+      .map(([pid, count]) => {
+        const p = byId.get(String(pid));
+        return p ? { emoji: p.emoji, name: p.name, count } : null;
+      })
+      .filter((v): v is { emoji: string; name: string; count: number } => Boolean(v))
+      .sort((a, b) => b.count - a.count);
+    const votes = { mvp: rows(r.counts.mvp), burden: rows(r.counts.burden) };
+    return votes.mvp.length || votes.burden.length ? votes : null;
+  },
+
+  /** 生成战绩长图（对齐 web 手机版导出的信息密度）并存相册 */
+  async onSavePoster() {
     const s = getStore().getState();
-    wx.showLoading({ title: '生成海报…' });
+    wx.showLoading({ title: '生成长图…' });
+    const votes = await this.collectPosterVotes(s).catch(() => null);
+    const layout = buildPosterLayout(s, {
+      roomCode: getOwnerSession().getCode(),
+      votes,
+      timestamp: new Date().toLocaleString('zh-CN', { hour12: false })
+    });
     wx.createSelectorQuery()
       .select('#posterCanvas')
       .fields({ node: true })
@@ -449,15 +486,19 @@ Page({
           wx.showToast({ title: '画布初始化失败', icon: 'none' });
           return;
         }
-        const dpr = (wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()).pixelRatio || 2;
-        canvas.width = POSTER_W * dpr;
-        canvas.height = POSTER_H * dpr;
+        // 长图高度 × dpr 可能撞老设备 canvas 尺寸上限（≈8192）—— 超限降为 1x 导出
+        const dpr = Math.min((wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()).pixelRatio || 2, 2);
+        const scale = layout.height * dpr > 8000 ? 1 : dpr;
+        canvas.width = layout.width * scale;
+        canvas.height = layout.height * scale;
         const ctx = canvas.getContext('2d');
-        ctx.scale(dpr, dpr);
-        drawPoster(ctx, s, getOwnerSession().getCode());
+        ctx.scale(scale, scale);
+        paintPoster(ctx, layout);
 
         wx.canvasToTempFilePath({
           canvas,
+          destWidth: layout.width * scale,
+          destHeight: layout.height * scale,
           success: (file) => {
             wx.saveImageToPhotosAlbum({
               filePath: file.tempFilePath,
