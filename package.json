@@ -1,0 +1,19 @@
+{
+  "name": "guandan-scorer-wxapp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "掼蛋计分助手 — 线下牌局计分记录工具（微信小程序）",
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "sync:shared": "node scripts/sync-shared-logic.mjs",
+    "sync:check": "node scripts/sync-shared-logic.mjs --check",
+    "typecheck": "tsc --noEmit"
+  },
+  "author": "Xingfan Xia",
+  "license": "MIT",
+  "devDependencies": {
+    "miniprogram-api-typings": "^5.2.1",
+    "typescript": "^6.0.3"
+  }
+}
