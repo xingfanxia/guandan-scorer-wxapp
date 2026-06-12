@@ -5,11 +5,13 @@
     "pages/history/history",
     "pages/profile/profile"
   ],
+  "darkmode": true,
+  "themeLocation": "theme.json",
   "window": {
-    "navigationBarTitleText": "掼蛋计分助手",
-    "navigationBarBackgroundColor": "#ffffff",
-    "navigationBarTextStyle": "black",
-    "backgroundColor": "#f6f6f6"
+    "navigationBarTitleText": "闹掼计分器",
+    "navigationBarBackgroundColor": "@navBgColor",
+    "navigationBarTextStyle": "@navTxtStyle",
+    "backgroundColor": "@bgColor"
   },
   "style": "v2",
   "sitemapLocation": "sitemap.json",

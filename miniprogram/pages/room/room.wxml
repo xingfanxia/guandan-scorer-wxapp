@@ -1,3 +1,131 @@
 <view class="page">
-  <text>围观页 — WXAPP-3 施工中</text>
+
+  <view class="card empty" wx:if="{{!loaded && !loadError}}">连接房间 {{code}} …</view>
+  <view class="card empty" wx:if="{{loadError}}">{{loadError}}</view>
+
+  <block wx:if="{{loaded}}">
+    <!-- 只读记分牌 -->
+    <view class="card board">
+      <view class="board__eyebrow {{vm.ended ? 'board__eyebrow--gold' : ''}}">{{vm.eyebrow}}</view>
+      <view class="board__teams">
+        <view class="board__team {{vm.roundOwner === 't1' ? 'board__team--owner' : ''}}">
+          <text class="board__name board__name--t1">{{vm.teamNames.t1}}</text>
+          <text class="board__level board__level--t1 {{vm.teamLevels.t1 === 'A' ? 'board__level--gold' : ''}}">{{vm.teamLevels.t1}}</text>
+          <text class="board__afail" wx:if="{{vm.strictA && vm.teamLevels.t1 === 'A'}}">A失败 {{vm.aFail.t1}}/3</text>
+        </view>
+        <text class="board__vs">:</text>
+        <view class="board__team {{vm.roundOwner === 't2' ? 'board__team--owner' : ''}}">
+          <text class="board__name board__name--t2">{{vm.teamNames.t2}}</text>
+          <text class="board__level board__level--t2 {{vm.teamLevels.t2 === 'A' ? 'board__level--gold' : ''}}">{{vm.teamLevels.t2}}</text>
+          <text class="board__afail" wx:if="{{vm.strictA && vm.teamLevels.t2 === 'A'}}">A失败 {{vm.aFail.t2}}/3</text>
+        </view>
+      </view>
+      <view class="room-meta">
+        <text class="room-meta__code">房间 {{code}}</text>
+        <text class="room-meta__channel">{{channelText}}</text>
+      </view>
+    </view>
+
+    <!-- 座位认领 -->
+    <view class="card section" wx:if="{{seats.length > 0}}">
+      <view class="section__head">
+        <text class="section__title">座位</text>
+        <text class="section__hint">认领你的座位，战绩记到你的微信</text>
+      </view>
+      <view class="seat" wx:for="{{seats}}" wx:for-item="s" wx:key="id">
+        <view class="seat__bar seat__bar--t{{s.team}}"></view>
+        <text class="seat__player">{{s.emoji}} {{s.name}}</text>
+        <text class="seat__claim" wx:if="{{s.claim && !s.mine}}">{{s.claim.nickname || '已认领'}}</text>
+        <text class="seat__claim seat__claim--mine" wx:if="{{s.mine}}">我 · 点击释放</text>
+        <button
+          wx:if="{{!s.claim}}"
+          class="btn btn--secondary seat__btn"
+          data-id="{{s.id}}"
+          bindtap="onStartClaim"
+        >认领</button>
+        <view wx:if="{{s.mine}}" class="seat__release" data-id="{{s.id}}" bindtap="onRelease"></view>
+      </view>
+
+      <!-- 认领表单（头像昵称填写能力） -->
+      <view class="claim-form" wx:if="{{claimingSeatId}}">
+        <button class="claim-form__avatar" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar">
+          <image wx:if="{{claimAvatar}}" class="claim-form__avatar-img" src="{{claimAvatar}}" />
+          <text wx:else>选头像</text>
+        </button>
+        <input
+          class="claim-form__nick"
+          type="nickname"
+          placeholder="微信昵称或自己起"
+          bindinput="onNickInput"
+          value="{{claimNickname}}"
+        />
+        <button class="btn btn--primary claim-form__submit" bindtap="onConfirmClaim">认领</button>
+      </view>
+    </view>
+
+    <!-- 结算与投票（比赛结束后出现） -->
+    <view class="card section" wx:if="{{vm.ended}}">
+      <view class="section__title">结算</view>
+      <view class="mvp" wx:if="{{mvp}}">
+        <text class="mvp__label">本场 MVP（最低平均排名）</text>
+        <text class="mvp__name">{{mvp.emoji}} {{mvp.name}} · 平均 {{mvp.avg}}</text>
+      </view>
+
+      <view class="vote">
+        <view class="vote__group">
+          <text class="vote__label">投「最C」</text>
+          <view class="vote__chips">
+            <view
+              wx:for="{{seats}}"
+              wx:for-item="s"
+              wx:key="id"
+              class="chip {{voteMvp === s.id ? 'chip--picked' : ''}}"
+              data-id="{{s.id}}"
+              data-kind="mvp"
+              bindtap="onPickVote"
+            >{{s.emoji}} {{s.name}}<text wx:if="{{tally.mvp[s.id]}}" class="chip__count">{{tally.mvp[s.id]}}</text></view>
+          </view>
+        </view>
+        <view class="vote__group">
+          <text class="vote__label">投「最闹」</text>
+          <view class="vote__chips">
+            <view
+              wx:for="{{seats}}"
+              wx:for-item="s"
+              wx:key="id"
+              class="chip {{voteBurden === s.id ? 'chip--picked' : ''}}"
+              data-id="{{s.id}}"
+              data-kind="burden"
+              bindtap="onPickVote"
+            >{{s.emoji}} {{s.name}}<text wx:if="{{tally.burden[s.id]}}" class="chip__count">{{tally.burden[s.id]}}</text></view>
+          </view>
+        </view>
+        <button
+          class="btn btn--primary vote__submit"
+          disabled="{{!voteMvp || !voteBurden}}"
+          bindtap="onSubmitVote"
+        >{{myVoted ? '改票' : '投票'}}</button>
+        <text class="vote__total" wx:if="{{tally.total}}">已收 {{tally.total}} 票</text>
+      </view>
+    </view>
+
+    <!-- 逐局记录 -->
+    <view class="card section">
+      <view class="section__title">逐局记录</view>
+      <view class="empty" wx:if="{{rows.length === 0}}">还没开打 —— 等房主记第一局</view>
+      <view class="row" wx:for="{{rows}}" wx:for-item="row" wx:key="seq">
+        <view class="row__bar row__bar--{{row.winKey}}"></view>
+        <view class="row__main">
+          <view class="row__line">
+            <text class="row__title">第 {{row.seq}} 局 · {{row.win}} {{row.combo}} → 打{{row.newLevel}}</text>
+            <text class="row__up">+{{row.up}}</text>
+          </view>
+          <text class="row__note" wx:if="{{row.aNote}}">{{row.aNote}}</text>
+        </view>
+      </view>
+    </view>
+
+    <button class="btn btn--secondary section" open-type="share">把房间发到群里</button>
+  </block>
+
 </view>

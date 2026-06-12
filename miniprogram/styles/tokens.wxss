@@ -1,0 +1,70 @@
+/**
+ * Design tokens — DESIGN.md §2-§4 的唯一实现处。
+ * 铁律：页面/组件 WXSS 只许 var(--token)，色值字面量只许出现在本文件。
+ */
+
+page {
+  /* 色板 — light */
+  --bg: #F4F6F3;
+  --surface: #FFFFFF;
+  --surface-2: #ECEFEA;
+  --text-primary: #1B221E;
+  --text-secondary: #5A655E;
+  --hairline: rgba(27, 34, 30, 0.12);
+  --accent: #15694B;
+  --accent-pressed: #0F523A;
+  --on-accent: #FFFFFF;
+  --team-t1: #2A5DB0;
+  --team-t2: #B6403B;
+  --team-t1-soft: rgba(42, 93, 176, 0.12);
+  --team-t2-soft: rgba(182, 64, 59, 0.12);
+  --gold-a: #A37412;
+  --danger: #B6403B;
+  --bar-shadow: 0 -4rpx 24rpx rgba(0, 0, 0, 0.08);
+
+  /* 字阶 */
+  --font-level: 144rpx;
+  --font-num-lg: 64rpx;
+  --font-title: 40rpx;
+  --font-body: 32rpx;
+  --font-label: 26rpx;
+
+  /* 间距（8rpx 网格） */
+  --s1: 8rpx;
+  --s2: 16rpx;
+  --s3: 24rpx;
+  --s4: 32rpx;
+  --s5: 48rpx;
+  --s6: 64rpx;
+  --gutter: 32rpx;
+
+  /* 形状 */
+  --radius-card: 20rpx;
+  --radius-control: 14rpx;
+  --radius-pill: 999rpx;
+
+  /* 点按 */
+  --touch-min: 88rpx;
+  --touch-bar: 96rpx;
+}
+
+@media (prefers-color-scheme: dark) {
+  page {
+    --bg: #111613;
+    --surface: #1A201C;
+    --surface-2: #242B26;
+    --text-primary: #F0F3EF;
+    --text-secondary: #9AA69E;
+    --hairline: rgba(240, 243, 239, 0.14);
+    --accent: #46B98D;
+    --accent-pressed: #37A179;
+    --on-accent: #0E1411;
+    --team-t1: #7CACFF;
+    --team-t2: #FF8077;
+    --team-t1-soft: rgba(124, 172, 255, 0.16);
+    --team-t2-soft: rgba(255, 128, 119, 0.16);
+    --gold-a: #E5B254;
+    --danger: #FF8077;
+    --bar-shadow: 0 -4rpx 24rpx rgba(0, 0, 0, 0.35);
+  }
+}

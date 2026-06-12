@@ -1,1 +1,16 @@
-/* 对局历史样式 — WXAPP-2 */
+/* 对局历史 — 公共 .card/.row 在 app.wxss；此处只留页面专属 */
+
+.card {
+  padding: var(--s3) var(--s4);
+  margin-bottom: var(--s2);
+}
+
+.row {
+  margin-bottom: 0;
+}
+
+.row__undo {
+  font-size: var(--font-label);
+  color: var(--danger);
+  padding: var(--s1) var(--s2);
+}

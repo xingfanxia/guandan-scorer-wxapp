@@ -1,3 +1,142 @@
-<view class="page">
-  <text>主计分页 — WXAPP-2 施工中</text>
+<view class="page index">
+
+  <!-- 级牌记分牌（签名元素，DESIGN.md §5） -->
+  <view class="card board">
+    <view class="board__eyebrow {{ended ? 'board__eyebrow--gold' : ''}}">{{eyebrow}}</view>
+    <view class="board__teams">
+      <view class="board__team {{roundOwner === 't1' ? 'board__team--owner' : ''}}">
+        <text class="board__name board__name--t1">{{teamNames.t1}}</text>
+        <text class="board__level board__level--t1 {{teamLevels.t1 === 'A' ? 'board__level--gold' : ''}}">{{teamLevels.t1}}</text>
+        <text class="board__afail" wx:if="{{prefs.strictA && teamLevels.t1 === 'A'}}">A失败 {{aFail.t1}}/3</text>
+      </view>
+      <text class="board__vs">:</text>
+      <view class="board__team {{roundOwner === 't2' ? 'board__team--owner' : ''}}">
+        <text class="board__name board__name--t2">{{teamNames.t2}}</text>
+        <text class="board__level board__level--t2 {{teamLevels.t2 === 'A' ? 'board__level--gold' : ''}}">{{teamLevels.t2}}</text>
+        <text class="board__afail" wx:if="{{prefs.strictA && teamLevels.t2 === 'A'}}">A失败 {{aFail.t2}}/3</text>
+      </view>
+    </view>
+    <button
+      wx:if="{{nextRoundBase}}"
+      class="btn btn--secondary board__advance"
+      hover-class="btn--pressed"
+      bindtap="onAdvance"
+    >进入下一局（打{{nextRoundBase}}）</button>
+    <view class="board__mvp" wx:if="{{ended && mvpText}}">{{mvpText}}</view>
+    <button
+      wx:if="{{ended && roomCode}}"
+      class="btn btn--secondary board__advance"
+      hover-class="btn--pressed"
+      bindtap="onSyncProfiles"
+    >战绩入库（认领过座位的玩家）</button>
+    <button
+      wx:if="{{ended}}"
+      class="btn btn--secondary board__advance"
+      hover-class="btn--pressed"
+      bindtap="onSavePoster"
+    >生成战绩海报存相册</button>
+  </view>
+
+  <!-- 海报离屏画布 -->
+  <canvas type="2d" id="posterCanvas" class="poster-canvas"></canvas>
+
+  <!-- 围观分享 -->
+  <view class="card section share">
+    <view>
+      <view class="share__code">{{roomCode || '围观'}}</view>
+      <view class="share__hint">{{roomCode ? '群里发卡片，牌友点开即看实时比分' : '开围观生成房间码，牌友实时看分'}}</view>
+    </view>
+    <button wx:if="{{roomCode}}" class="btn btn--secondary share__btn" open-type="share">发到群里</button>
+    <button wx:else class="btn btn--secondary share__btn" bindtap="onOpenRoom">开围观</button>
+  </view>
+
+  <!-- 模式与规则 -->
+  <view class="card section">
+    <view class="seg">
+      <view
+        wx:for="{{modeOptions}}"
+        wx:key="*this"
+        class="seg__item {{mode === item ? 'seg__item--active' : ''}}"
+        data-mode="{{item}}"
+        bindtap="onMode"
+      >{{item}}人</view>
+    </view>
+    <view class="pref">
+      <text class="pref__label">严格A级（3次失败回2）</text>
+      <switch checked="{{prefs.strictA}}" color="{{accentColor}}" data-key="strictA" bindchange="onPref" />
+    </view>
+    <view class="pref">
+      <text class="pref__label">升级需含头游</text>
+      <switch checked="{{prefs.must1}}" color="{{accentColor}}" data-key="must1" bindchange="onPref" />
+    </view>
+    <view class="pref">
+      <text class="pref__label">记分后自动进下一局</text>
+      <switch checked="{{prefs.autoNext}}" color="{{accentColor}}" data-key="autoNext" bindchange="onPref" />
+    </view>
+  </view>
+
+  <!-- 玩家与名次录入 -->
+  <view class="card section">
+    <view class="section__head">
+      <text class="section__title">玩家</text>
+      <text class="section__hint">{{rankHint}}</text>
+    </view>
+
+    <view class="team-row" wx:for="{{teamRows}}" wx:for-item="row" wx:key="key">
+      <view class="team-row__bar team-row__bar--{{row.key}}"></view>
+      <view class="team-row__chips">
+        <view
+          wx:for="{{row.players}}"
+          wx:for-item="p"
+          wx:key="id"
+          class="chip chip--{{row.key}} {{p.badge ? 'chip--ranked' : ''}}"
+          data-id="{{p.id}}"
+          bindtap="onTapPlayer"
+          bindlongpress="onEditPlayer"
+        >
+          <text class="chip__badge" wx:if="{{p.badge}}">{{p.badge}}</text>
+          <text class="chip__emoji">{{p.emoji}}</text>
+          <text class="chip__name">{{p.name}}</text>
+        </view>
+        <view
+          wx:if="{{playersCount < modeNum}}"
+          class="chip chip--add"
+          data-team="{{row.team}}"
+          bindtap="onAddPlayer"
+        >＋ 加人</view>
+      </view>
+    </view>
+
+    <view class="empty" wx:if="{{playersCount < modeNum}}">
+      加满 {{modeNum}} 人就能开局（还差 {{modeNum - playersCount}} 人）
+    </view>
+  </view>
+
+  <!-- 升级预览条 -->
+  <view class="card preview" wx:if="{{preview}}">
+    <text class="preview__num">{{preview.upgradeText}}</text>
+    <text class="preview__detail">{{preview.detail}}</text>
+  </view>
+
+  <!-- 页面导航 -->
+  <view class="nav section">
+    <button class="btn btn--ghost nav__btn" hover-class="btn--pressed" bindtap="goHistory">对局历史</button>
+    <button class="btn btn--ghost nav__btn" hover-class="btn--pressed" bindtap="goProfile">我的档案</button>
+    <button wx:if="{{roomCode}}" class="btn btn--ghost nav__btn" hover-class="btn--pressed" bindtap="goRoom">进房间</button>
+  </view>
+
+  <view class="bar-spacer"></view>
+
+  <!-- 底部操作栏 -->
+  <view class="actionbar">
+    <button class="btn btn--ghost" hover-class="btn--pressed" bindtap="onUndo">撤销</button>
+    <button class="btn btn--ghost btn--danger" hover-class="btn--pressed" bindtap="onReset">重置</button>
+    <button
+      class="btn btn--primary actionbar__apply"
+      hover-class="btn--pressed"
+      disabled="{{!preview}}"
+      bindtap="onApply"
+    >应用结果</button>
+  </view>
+
 </view>

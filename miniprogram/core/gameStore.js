@@ -91,15 +91,25 @@ function hydrate(raw, now) {
  * @param {Object} [opts]
  * @param {{get(k:string):any, set(k:string, v:any):void}} [opts.storage] - wx storage 适配器；缺省为内存空实现
  * @param {() => number} [opts.now] - 时钟注入（测试用固定时钟）
+ * @param {(state: Object) => void} [opts.onChange] - 每次状态落盘后回调（房间同步推送的挂点）
  */
-export function createGameStore({ storage, now } = {}) {
+export function createGameStore({ storage, now, onChange } = {}) {
   const clock = now || (() => Date.now());
   const store = storage || { get: () => null, set: () => {} };
+  const listeners = onChange ? [onChange] : [];
 
   let state = hydrate(store.get(STORAGE_KEY), clock);
 
   function persist() {
-    store.set(STORAGE_KEY, clone(state));
+    const snapshot = clone(state);
+    store.set(STORAGE_KEY, snapshot);
+    for (const fn of listeners) {
+      try {
+        fn(snapshot);
+      } catch (err) {
+        console.error('[gameStore] onChange listener failed:', err);
+      }
+    }
   }
 
   function modeCount() {
@@ -127,6 +137,15 @@ export function createGameStore({ storage, now } = {}) {
 
   return {
     getState: () => clone(state),
+
+    /** 订阅状态变更（返回退订函数）。房间推送、页面联动用。 */
+    subscribe(fn) {
+      listeners.push(fn);
+      return () => {
+        const i = listeners.indexOf(fn);
+        if (i >= 0) listeners.splice(i, 1);
+      };
+    },
 
     /** 测试/迁移专用：直接覆盖部分状态。页面代码禁止调用。 */
     __seed(partial) {

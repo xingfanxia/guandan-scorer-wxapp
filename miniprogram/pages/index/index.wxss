@@ -1,1 +1,247 @@
-/* 主计分页样式 — WXAPP-2 */
+/* 主计分页 — 公共 .card/.btn/.board 在 app.wxss；此处只留页面专属 */
+
+.section {
+  margin-top: var(--s3);
+}
+
+.poster-canvas {
+  position: fixed;
+  left: -9999rpx;
+  top: 0;
+  width: 750px;
+  height: 1100px;
+}
+
+.board__mvp {
+  margin-top: var(--s3);
+  font-size: var(--font-body);
+  color: var(--gold-a);
+  font-weight: 600;
+  text-align: center;
+}
+
+/* ===== 模式与规则 ===== */
+.seg {
+  display: flex;
+  background: var(--surface-2);
+  border-radius: var(--radius-control);
+  padding: 4rpx;
+}
+
+.seg__item {
+  flex: 1;
+  text-align: center;
+  height: 72rpx;
+  line-height: 72rpx;
+  border-radius: 10rpx;
+  font-size: var(--font-body);
+  color: var(--text-secondary);
+}
+
+.seg__item--active {
+  background: var(--surface);
+  color: var(--text-primary);
+  font-weight: 600;
+  border: 1rpx solid var(--hairline);
+}
+
+.pref {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--touch-min);
+  border-top: 1rpx solid var(--hairline);
+  margin-top: var(--s2);
+  padding-top: var(--s1);
+}
+
+.pref__label {
+  font-size: var(--font-body);
+}
+
+/* ===== 围观分享 ===== */
+.share {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.share__code {
+  font-size: var(--font-title);
+  font-weight: 700;
+  font-feature-settings: "tnum";
+  letter-spacing: 4rpx;
+}
+
+.share__hint {
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+  margin-top: var(--s1);
+}
+
+.share__btn {
+  flex: 0 0 auto;
+  height: var(--touch-min);
+  line-height: var(--touch-min);
+  font-size: var(--font-body);
+}
+
+/* ===== 玩家与名次 ===== */
+.section__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--s2);
+}
+
+.section__title {
+  font-size: var(--font-title);
+  font-weight: 600;
+}
+
+.section__hint {
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+}
+
+.team-row {
+  display: flex;
+  align-items: flex-start;
+  margin-top: var(--s2);
+}
+
+.team-row__bar {
+  width: 6rpx;
+  align-self: stretch;
+  border-radius: var(--radius-pill);
+  margin-right: var(--s2);
+}
+
+.team-row__bar--t1 { background: var(--team-t1); }
+.team-row__bar--t2 { background: var(--team-t2); }
+
+.team-row__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  flex: 1;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  height: var(--touch-min);
+  padding: 0 var(--s3);
+  border: 1rpx solid var(--hairline);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  position: relative;
+}
+
+.chip--t1.chip--ranked { background: var(--team-t1-soft); border-color: var(--team-t1); }
+.chip--t2.chip--ranked { background: var(--team-t2-soft); border-color: var(--team-t2); }
+
+.chip__badge {
+  position: absolute;
+  top: -14rpx;
+  left: -8rpx;
+  min-width: 40rpx;
+  height: 40rpx;
+  line-height: 40rpx;
+  text-align: center;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: var(--font-label);
+  font-weight: 600;
+  font-feature-settings: "tnum";
+}
+
+.chip__emoji {
+  font-size: var(--font-body);
+  margin-right: var(--s1);
+}
+
+.chip__name {
+  font-size: var(--font-body);
+  max-width: 8em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip--add {
+  color: var(--accent);
+  border-style: dashed;
+}
+
+.empty {
+  margin-top: var(--s3);
+  font-size: var(--font-label);
+}
+
+/* ===== 升级预览条 ===== */
+.preview {
+  margin-top: var(--s3);
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  border-color: var(--accent);
+}
+
+.preview__num {
+  font-size: var(--font-num-lg);
+  font-weight: 700;
+  color: var(--accent);
+  font-feature-settings: "tnum";
+}
+
+.preview__detail {
+  font-size: var(--font-body);
+  color: var(--text-secondary);
+}
+
+.nav {
+  display: flex;
+  gap: var(--s2);
+}
+
+.nav__btn {
+  flex: 1;
+  height: var(--touch-min);
+  line-height: var(--touch-min);
+  font-size: var(--font-body);
+  background: var(--surface);
+}
+
+/* ===== 底部操作栏 ===== */
+.bar-spacer {
+  height: 160rpx;
+}
+
+.actionbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  gap: var(--s2);
+  padding: var(--s2) var(--gutter);
+  padding-bottom: calc(var(--s2) + env(safe-area-inset-bottom));
+  background: var(--surface);
+  border-top: 1rpx solid var(--hairline);
+  box-shadow: var(--bar-shadow);
+}
+
+/* 微信 button 自带默认宽度 —— 操作栏内 ghost 按钮定宽，主按钮吃满剩余 */
+.actionbar .btn--ghost {
+  flex: 0 0 176rpx;
+  width: 176rpx;
+  min-width: 0;
+  padding: 0;
+}
+
+.actionbar .actionbar__apply {
+  flex: 1;
+  width: auto;
+}
