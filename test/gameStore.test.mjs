@@ -302,3 +302,37 @@ describe('gameStore — 全程联调：4人局从打2到通关', () => {
     assert.equal(isValidRoomSnapshotPayload({ state: { history: s.history } }), true);
   });
 });
+
+describe('gameStore — 8人局（单设备即可完整运行，玩家=座位非账号）', () => {
+  it('8 个座位由房主一台设备管理：sweep [1,2,3,4] 升 4 级，2→6', () => {
+    const store = freshStore();
+    store.setMode('8');
+    const names = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛'];
+    names.forEach((n, i) => {
+      const res = store.addPlayer({ name: n, emoji: '🙂', team: i < 4 ? 1 : 2 });
+      assert.equal(res.ok, true, `第 ${i + 1} 个座位应能添加`);
+    });
+    assert.equal(store.getState().players.length, 8);
+
+    // t1 四人包揽 1,2,3,4 = sweep → 升 4 级
+    const res = store.applyResult('t1', [1, 2, 3, 4]);
+    assert.equal(res.applied, true);
+    const s = store.getState();
+    assert.equal(s.teamLevels.t1, '6'); // 2 + 4
+    assert.equal(s.roundLevel, '6');
+    assert.equal(s.roundOwner, 't1');
+  });
+
+  it('8人局非 sweep 走 t8 阈值；末游=8 在 A 级判定生效', () => {
+    const store = freshStore();
+    store.setMode('8');
+    for (let i = 0; i < 8; i++) store.addPlayer({ name: `P${i + 1}`, emoji: '🙂', team: i < 4 ? 1 : 2 });
+    store.__seed({ teamLevels: { t1: 'A', t2: 'K' }, roundLevel: 'A', roundOwner: 't1' });
+
+    // t1 拿 1,2,3,8 —— 含末游(8)，自己的A级 → 失败计 1 次
+    const res = store.applyResult('t1', [1, 2, 3, 8]);
+    assert.equal(res.applied, true);
+    assert.equal(res.finalWin, false);
+    assert.deepEqual(store.getState().aFail, { t1: 1, t2: 0 });
+  });
+});
