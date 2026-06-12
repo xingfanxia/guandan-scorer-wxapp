@@ -2,7 +2,7 @@
   "miniprogramRoot": "miniprogram/",
   "srcMiniprogramRoot": "miniprogram/",
   "compileType": "miniprogram",
-  "appid": "touristappid",
+  "appid": "wxb9f2afca5bcf65c4",
   "projectname": "guandan-scorer-wxapp",
   "setting": {
     "es6": true,
