@@ -25,6 +25,7 @@ const MANIFEST = [
   { src: 'shared/achievementLogic.js', dest: 'achievementLogic.js' },
   { src: 'shared/gameStatus.js', dest: 'gameStatus.js' },
   { src: 'shared/honorCatalog.js', dest: 'honorCatalog.js' },
+  { src: 'shared/honorLogic.js', dest: 'honorLogic.js' },
   { src: 'shared/playerCountMode.js', dest: 'playerCountMode.js' },
   { src: 'shared/roomSnapshotValidation.js', dest: 'roomSnapshotValidation.js' },
   { src: 'shared/ruleConfig.js', dest: 'ruleConfig.js' },

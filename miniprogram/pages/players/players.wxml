@@ -1,0 +1,84 @@
+<view class="page">
+
+  <view class="card empty" wx:if="{{loading}}">读取玩家池…</view>
+  <view class="card empty" wx:if="{{!loading && rows.length === 0}}">
+    玩家池是空的 —— 等房主导入 web 版玩家
+  </view>
+
+  <!-- 读取详情时整列表让位给 loading 态（点击反馈 + 防重复点） -->
+  <view class="card empty" wx:if="{{detailLoading}}">读取档案…</view>
+
+  <!-- 天梯榜列表 -->
+  <view class="card" wx:if="{{!loading && rows.length > 0 && !detail && !detailLoading}}">
+    <view class="lad__head">
+      <text class="lad__cell lad__cell--rank">#</text>
+      <text class="lad__cell lad__cell--name">玩家</text>
+      <text class="lad__cell">天梯</text>
+      <text class="lad__cell">场次</text>
+    </view>
+    <view
+      class="lad__row"
+      wx:for="{{rows}}"
+      wx:for-item="p"
+      wx:key="handle"
+      hover-class="lad__row--pressed"
+      data-handle="{{p.handle}}"
+      bindtap="onTapPlayer"
+    >
+      <text class="lad__cell lad__cell--rank">{{p.rank}}</text>
+      <view class="lad__cell lad__cell--name">
+        <text class="lad__name">{{p.emoji}} {{p.displayName}}{{p.boundToMe ? '（我）' : ''}}</text>
+        <text class="lad__handle">@{{p.handle}}{{p.bound ? '' : ' · 未绑定'}}</text>
+      </view>
+      <text class="lad__cell lad__num">{{p.ladderText}}</text>
+      <text class="lad__cell lad__num">{{p.totalSessions}}</text>
+    </view>
+    <view class="lad__hint">点玩家看完整档案 · 带 * 的是按 web 历史折算的起评分，打过小程序场后开始实结</view>
+  </view>
+
+  <!-- 玩家详情 -->
+  <block wx:if="{{detail && !detailLoading}}">
+    <view class="card who">
+      <view class="who__id">
+        <text class="who__name">{{detail.emoji}} {{detail.displayName}}</text>
+        <text class="who__sub">@{{detail.handle}}{{detail.tagline ? ' · ' + detail.tagline : ''}}</text>
+        <text class="who__sub" wx:if="{{detail.summary}}">小程序 {{detail.summary.sessionsPlayed}} 场 · 胜率 {{detail.summary.winRate}} · 天梯 {{detail.summary.ladder}}</text>
+        <text class="who__sub" wx:if="{{!detail.bound}}">未绑定微信 —— 只有 web 版老战绩</text>
+      </view>
+    </view>
+
+    <view class="card section" wx:if="{{detail.statCells.length > 0}}">
+      <view class="section__title">小程序战绩</view>
+      <view class="stat-grid">
+        <view class="stat" wx:for="{{detail.statCells}}" wx:key="label">
+          <text class="stat__num">{{item.value}}</text>
+          <text class="stat__label">{{item.label}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="card section" wx:if="{{detail.honorRows.length > 0}}">
+      <view class="section__title">荣誉</view>
+      <view class="honor" wx:for="{{detail.honorRows}}" wx:key="title">
+        <view class="honor__main">
+          <text class="honor__title">{{item.title}}</text>
+          <text class="honor__caption" wx:if="{{item.caption}}">{{item.caption}}</text>
+        </view>
+        <text class="honor__count">×{{item.count}}</text>
+      </view>
+    </view>
+
+    <view class="card section">
+      <view class="section__title">web 版老战绩</view>
+      <view class="stat-grid">
+        <view class="stat" wx:for="{{detail.webCells}}" wx:key="label">
+          <text class="stat__num">{{item.value}}</text>
+          <text class="stat__label">{{item.label}}</text>
+        </view>
+      </view>
+    </view>
+
+    <button class="btn btn--secondary lad__back" hover-class="btn--pressed" bindtap="onCloseDetail">返回天梯榜</button>
+  </block>
+
+</view>

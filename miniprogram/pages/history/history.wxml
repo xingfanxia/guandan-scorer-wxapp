@@ -1,3 +1,58 @@
 <view class="page">
-  <text>对局历史 — WXAPP-2 施工中</text>
+  <view class="empty card" wx:if="{{rows.length === 0}}">
+    还没有记录 —— 回主页记一局就有了
+  </view>
+
+  <!-- 本场统计（web 版统计面板对位） -->
+  <view class="card stats" wx:if="{{stats && stats.rows.length > 0}}">
+    <view class="stats__title">本场统计 · {{stats.gamesInSession}} 局</view>
+    <view class="stats__head">
+      <text class="stats__cell stats__cell--name">玩家</text>
+      <text class="stats__cell">平均</text>
+      <text class="stats__cell">头游</text>
+      <text class="stats__cell">垫底</text>
+    </view>
+    <view class="stats__row" wx:for="{{stats.rows}}" wx:for-item="r" wx:key="id">
+      <text class="stats__cell stats__cell--name stats__cell--t{{r.team}}">{{r.emoji}} {{r.name}}</text>
+      <text class="stats__cell stats__num">{{r.avg}}</text>
+      <text class="stats__cell stats__num">{{r.first}}</text>
+      <text class="stats__cell stats__num">{{r.last}}</text>
+    </view>
+  </view>
+
+  <!-- 本场荣誉 -->
+  <view class="card stats" wx:if="{{stats && stats.rows.length > 0}}">
+    <view class="stats__title">本场荣誉</view>
+    <block wx:if="{{stats.honorsUnlocked && stats.honorRows.length > 0}}">
+      <view class="honor-line" wx:for="{{stats.honorRows}}" wx:for-item="h" wx:key="title">
+        <view class="honor-line__main">
+          <text class="honor-line__title">{{h.title}}</text>
+          <text class="honor-line__caption" wx:if="{{h.caption}}">{{h.caption}}</text>
+        </view>
+        <text class="honor-line__holder">{{h.emoji}} {{h.name}}</text>
+      </view>
+    </block>
+    <view class="empty" wx:if="{{!stats.honorsUnlocked}}">打满 5 局解锁荣誉评定（还差 {{5 - stats.gamesInSession}} 局）</view>
+    <view class="empty" wx:if="{{stats.honorsUnlocked && stats.honorRows.length === 0}}">本场暂无荣誉得主</view>
+  </view>
+
+  <view class="card row" wx:for="{{rows}}" wx:for-item="row" wx:key="seq">
+    <view class="row__bar row__bar--{{row.winKey}}"></view>
+    <view class="row__main">
+      <view class="row__line">
+        <text class="row__title">第 {{row.seq}} 局 · {{row.win}} {{row.combo}} → 打{{row.newLevel}}</text>
+        <text class="row__up">+{{row.up}}</text>
+      </view>
+      <text class="row__ranks" wx:if="{{row.rankingLine}}">{{row.rankingLine}}</text>
+      <text class="row__note" wx:if="{{row.aNote}}">{{row.aNote}}</text>
+      <view class="row__meta">
+        <text class="row__ts">{{row.ts}}</text>
+        <text
+          wx:if="{{row.isLatest}}"
+          class="row__undo"
+          bindtap="onUndoLatest"
+        >撤销此局</text>
+      </view>
+    </view>
+  </view>
 </view>

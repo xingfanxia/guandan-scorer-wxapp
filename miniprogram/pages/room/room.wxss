@@ -1,1 +1,304 @@
-/* 围观页样式 — WXAPP-3 */
+/* 围观页 — 公共 .card/.board/.row 在 app.wxss */
+
+.section {
+  margin-top: var(--s3);
+}
+
+.section__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--s2);
+}
+
+.section__title {
+  font-size: var(--font-title);
+  font-weight: 600;
+  margin-bottom: var(--s2);
+}
+
+.section__hint {
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+}
+
+.room-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--s3);
+}
+
+.room-meta__code {
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+  font-feature-settings: "tnum";
+  letter-spacing: 2rpx;
+}
+
+.room-meta__channel {
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+}
+
+/* ===== 座位认领 ===== */
+.seat {
+  display: flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  position: relative;
+}
+
+.seat__bar {
+  width: 6rpx;
+  height: 36rpx;
+  border-radius: var(--radius-pill);
+  margin-right: var(--s2);
+}
+
+.seat__bar--t1 { background: var(--team-t1); }
+.seat__bar--t2 { background: var(--team-t2); }
+
+.seat__player {
+  flex: 1;
+  font-size: var(--font-body);
+}
+
+.seat__claim {
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+}
+
+.seat__claim--mine {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.seat__btn {
+  flex: 0 0 auto;
+  width: 144rpx;
+  min-width: 0;
+  height: 72rpx;
+  line-height: 72rpx;
+  font-size: var(--font-label);
+  padding: 0;
+}
+
+.seat__btn--suggest {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+}
+
+.seat__release {
+  position: absolute;
+  inset: 0;
+  left: 50%;
+}
+
+.claim-form {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-top: var(--s3);
+  padding-top: var(--s3);
+  border-top: 1rpx solid var(--hairline);
+}
+
+.claim-form__avatar {
+  flex: 0 0 96rpx;
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  border: 1rpx dashed var(--hairline);
+  padding: 0;
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.claim-form__avatar::after { border: none; }
+
+.claim-form__avatar-img {
+  width: 100%;
+  height: 100%;
+}
+
+.claim-form__nick {
+  flex: 1;
+  height: 88rpx;
+  background: var(--surface-2);
+  border-radius: var(--radius-control);
+  padding: 0 var(--s3);
+  font-size: var(--font-body);
+}
+
+.claim-form__submit {
+  flex: 0 0 160rpx;
+  width: 160rpx;
+  height: 88rpx;
+  line-height: 88rpx;
+  font-size: var(--font-body);
+}
+
+/* ===== 结算与投票 ===== */
+.mvp {
+  padding: var(--s3);
+  background: var(--surface-2);
+  border-radius: var(--radius-control);
+  margin-bottom: var(--s3);
+}
+
+.mvp__label {
+  display: block;
+  font-size: var(--font-label);
+  color: var(--gold-a);
+  letter-spacing: 2rpx;
+}
+
+.mvp__name {
+  display: block;
+  margin-top: var(--s1);
+  font-size: var(--font-title);
+  font-weight: 700;
+}
+
+.vote__group {
+  margin-top: var(--s2);
+}
+
+.vote__label {
+  display: block;
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+  margin-bottom: var(--s1);
+}
+
+.vote__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  height: var(--touch-min);
+  padding: 0 var(--s3);
+  border: 1rpx solid var(--hairline);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  font-size: var(--font-body);
+}
+
+.chip--picked {
+  border-color: var(--accent);
+  background: var(--surface-2);
+  font-weight: 600;
+}
+
+.chip__count {
+  margin-left: var(--s1);
+  font-size: var(--font-label);
+  color: var(--accent);
+  font-weight: 700;
+  font-feature-settings: "tnum";
+}
+
+.vote__submit {
+  margin-top: var(--s3);
+  width: 100%;
+}
+
+.vote__total {
+  display: block;
+  margin-top: var(--s2);
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.vote__reset {
+  margin-top: var(--s2);
+  width: 100%;
+  height: var(--touch-min);
+  line-height: var(--touch-min);
+  font-size: var(--font-body);
+}
+
+/* ===== 本场统计 ===== */
+.stats__head,
+.stats__row {
+  display: flex;
+  align-items: center;
+  min-height: 56rpx;
+}
+
+.stats__head {
+  color: var(--text-secondary);
+  font-size: var(--font-label);
+  border-bottom: 1rpx solid var(--hairline);
+}
+
+.stats__cell {
+  flex: 1;
+  text-align: center;
+  font-size: var(--font-body);
+}
+
+.stats__cell--name {
+  flex: 2;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stats__cell--t1 { color: var(--team-t1); }
+.stats__cell--t2 { color: var(--team-t2); }
+
+.stats__num {
+  font-feature-settings: "tnum";
+}
+
+.stats__honors-title {
+  margin-top: var(--s3);
+  font-size: var(--font-label);
+  color: var(--gold-a);
+  letter-spacing: 2rpx;
+}
+
+.honor-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 64rpx;
+  padding: var(--s1) 0;
+}
+
+.honor-line__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2rpx;
+  min-width: 0;
+}
+
+.honor-line__title {
+  font-size: var(--font-body);
+  font-weight: 600;
+  color: var(--gold-a);
+}
+
+.honor-line__caption {
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+}
+
+.honor-line__holder {
+  font-size: var(--font-body);
+  flex-shrink: 0;
+  margin-left: var(--s2);
+}

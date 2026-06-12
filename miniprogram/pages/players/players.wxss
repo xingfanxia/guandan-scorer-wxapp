@@ -1,0 +1,163 @@
+/* 玩家天梯/查询 — 公共 .card/.btn 在 app.wxss；stat/honor 结构与档案页同款 */
+
+.lad__head,
+.lad__row {
+  display: flex;
+  align-items: center;
+  min-height: var(--touch-min);
+}
+
+.lad__head {
+  color: var(--text-secondary);
+  font-size: var(--font-label);
+  border-bottom: 1rpx solid var(--hairline);
+}
+
+.lad__row {
+  padding: var(--s1) 0;
+}
+
+/* :first-of-type 按标签类型匹配，view 同级里永不生效 —— 用相邻兄弟画分隔线 */
+.lad__row + .lad__row {
+  border-top: 1rpx solid var(--hairline);
+}
+
+.lad__row--pressed {
+  background: var(--surface-2);
+}
+
+.lad__cell {
+  flex: 1;
+  text-align: center;
+  font-size: var(--font-body);
+}
+
+.lad__cell--rank {
+  flex: 0 0 64rpx;
+  color: var(--text-secondary);
+  font-feature-settings: "tnum";
+}
+
+.lad__cell--name {
+  flex: 3;
+  text-align: left;
+  min-width: 0;
+}
+
+.lad__name {
+  display: block;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lad__handle {
+  display: block;
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+}
+
+.lad__num {
+  font-feature-settings: "tnum";
+}
+
+.lad__hint {
+  margin-top: var(--s2);
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+}
+
+.lad__back {
+  margin-top: var(--s3);
+  width: 100%;
+  height: var(--touch-min);
+  line-height: var(--touch-min);
+  font-size: var(--font-body);
+}
+
+/* 与档案页同款结构（页面级 WXSS 不互通，此处为镜像样式） */
+.section {
+  margin-top: var(--s3);
+}
+
+.section__title {
+  font-size: var(--font-title);
+  font-weight: 600;
+  margin-bottom: var(--s2);
+}
+
+.who__name {
+  display: block;
+  font-size: var(--font-title);
+  font-weight: 700;
+}
+
+.who__sub {
+  display: block;
+  margin-top: var(--s1);
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+  font-feature-settings: "tnum";
+}
+
+.stat-grid {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.stat {
+  width: 33.33%;
+  padding: var(--s2) 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4rpx;
+}
+
+.stat__num {
+  font-size: var(--font-num-lg);
+  font-weight: 700;
+  font-feature-settings: "tnum";
+}
+
+.stat__label {
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+}
+
+.honor {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: var(--touch-min);
+}
+
+.honor + .honor {
+  border-top: 1rpx solid var(--hairline);
+}
+
+.honor__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2rpx;
+  min-width: 0;
+  padding: var(--s1) 0;
+}
+
+.honor__title {
+  font-size: var(--font-body);
+  font-weight: 600;
+}
+
+.honor__caption {
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+}
+
+.honor__count {
+  font-size: var(--font-body);
+  color: var(--gold-a);
+  font-weight: 700;
+  font-feature-settings: "tnum";
+}

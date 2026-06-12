@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 掼蛋计分助手 — 微信小程序版的掼蛋（Guandan）计分器。是 `~/projects/side-projects/guandan-scorer`（web 版，Vercel + KV）的 sibling repo，**不是 fork**：infra 与 web 版零重叠（原生小程序 + 微信云开发），只共享纯游戏逻辑。
 
-**当前状态（2026-06-11）：WXAPP-1 落地** —— shared-logic vendor 快照 + Node 测试 + 原生 TS 空壳（appid=touristappid）。等待用户完成 WXAPP-0（mp.weixin.qq.com 注册个人主体小程序）+ 首次扫码登录开发者工具；DevTools 编译验证与 WXAPP-2 起的真机预览依赖后者。
+**当前状态（2026-06-12 晚）：WXAPP-2~5、WXAPP-8、WXAPP-9 代码侧完成**（分支 wxapp-2-scoring-loop）——单机计分闭环、云房间围观（watch+轮询）、投票/座位认领/档案、长图海报（web 手机版对位）、玩家池与 web 数据迁移、天梯分（简化 ELO + 起评分）、玩家天梯查询页；12 个云函数已部署；体验版 0.3.0 已上传。剩余人工步骤见 docs/PLAN.md「人工清单」（rooms 权限、认证、选体验版、体验成员、真机 QA）。
 
 ## 账号与环境（2026-06-12 注册完成）
 
@@ -35,9 +35,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 规则引擎的权威实现在 `~/projects/side-projects/guandan-scorer`：
 
-- 顶层 `shared/`（9 个零宿主依赖模块）：achievementLogic / aLevelLogic / gameStatus / honorCatalog / playerCountMode / roomSnapshotValidation / ruleConfig / version / voteSessionKey —— `checkALevelRules` 算法已抽纯进 `shared/aLevelLogic.js`（upstream `cd9551f`+`cf03c6f`，web 的同名函数只剩薄包装）。**注意范围**：rules.js 的 `applyGameResult`/`advanceToNextRound` 编排层（next-round base 推进、gameStatus 构造、回滚 snapshot）仍耦合 web 的 state 单例，没有也不会 vendor —— WXAPP-2 在小程序侧用自己的 store 重实现这层编排
+- 顶层 `shared/`（10 个零宿主依赖模块）：achievementLogic / aLevelLogic / gameStatus / honorCatalog / honorLogic / playerCountMode / roomSnapshotValidation / ruleConfig / version / voteSessionKey —— `checkALevelRules` 已抽纯（upstream `cd9551f`+`cf03c6f`）、16 荣誉算法已抽纯进 `shared/honorLogic.js`（upstream `00f6ef6`），web 侧只剩薄包装/渲染半边。**注意范围**：rules.js 的 `applyGameResult`/`advanceToNextRound` 编排层仍耦合 web 的 state 单例，没有也不会 vendor —— 小程序侧由 `miniprogram/core/gameStore.js` 重实现（语义对齐，契约测试见 test/gameStore.test.mjs）
 - `src/game/calculator.js`（231 行纯函数）：parseRanks / calculateUpgrade / nextLevel
-- `src/stats/honors.js` 的 16 荣誉算法（与 DOM 渲染混合，WXAPP-5 时再抽计算半边）
 
 本 repo 的 `miniprogram/shared-logic/` 是 vendor 快照，由 `npm run sync:shared`（scripts/sync-shared-logic.mjs）生成，文件头注记 upstream commit hash，上游必须是干净 commit 才允许同步。**改游戏规则：先改 web repo，再 `npm run sync:shared` 同步过来 —— 永远不要让两边规则分叉、不要手改 vendor 文件。** A 级规则细节（roundOwner 判定、strict 3 次失败降级、双 A 局归属）见 web repo CLAUDE.md。
 
@@ -49,13 +48,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 4. AppSecret / session_key 永不出现在客户端代码或 repo
 5. 真钱/兑换/红包元素是腾讯对未上架内容唯一主动执法类别 —— 体验版也零容忍
 
+## 微信开发者工具 = 单实例共享资源（2026-06-12 与 dahua-dice-wxapp 实测撞车后立规）
+
+**Canonical 约定在 `~/.claude/references/wechat-devtools-lock.md`**（与 dahua-dice-wxapp 共同遵守），要点：
+
+1. **永不 `cli quit`/`pkill` IDE**（生命周期操作杀掉所有项目的会话）。冒烟挂起 = 报告占用并等待/询问。
+2. **automator/生命周期操作前拿锁**：`~/.claude/state/wechat-devtools.lock/`（45 分钟僵尸可抢）。本 repo 实现：`scripts/automator/devtoolsLock.mjs`（automator 脚本已内置）；shell 侧可用 `~/projects/side-projects/dahua-dice-wxapp/scripts/ops/devtools-lock.sh acquire/release/status`。
+3. **窗口级操作**（`cli open --project`、自己项目的 preview/build）不需要锁，先 status 看一眼即可；多项目窗口可共存。
+4. 完全不碰 DevTools 的工作（写码/npm test/tsc/git）随便并行。
+5. **automator 端口分家**：本 repo `port: 9421`（dahua 9422），不要用默认 9420。
+6. **云函数 deploy 经 IDE 全局云会话**，跨项目云操作必须串行（同一把锁）。已知症状：会话不对时报 `ResourceNotFound.Namespace` / `getCloudAPISignedHeader 41002` —— 此时执行面（callFunction）通常仍正常，别误判成函数挂了；处理 = 拿锁后重试或留给 GUI 部署，不要重启 IDE。
+
 ## 开发命令
 
-- `npm test` — shared-logic 纯逻辑测试（node:test，零第三方依赖）
+- `npm test` — 规则 + 编排逻辑测试（node:test，零第三方依赖，250+ 用例）
 - `npm run typecheck` — `tsc --noEmit` 检查 `miniprogram/**/*.ts`
-- `npm run sync:shared` — 从 web repo 重新 vendor shared-logic（上游有未提交改动会拒绝）
-- 开发者工具 CLI（需先扫码登录 + 设置→安全设置→开服务端口）：`/Applications/wechatwebdevtools.app/Contents/MacOS/cli`，常用 `cli open --project $(pwd)` / `cli preview --project $(pwd)`
-- 云函数本地调试 — WXAPP-3 接入云开发后补
+- `npm run sync:shared` / `npm run sync:check` — vendor 同步 / 防手改校验
+- `node scripts/automator/scoring-flow.mjs` — 模拟器 E2E（计分主链路，截图到 docs/reports/）
+- `node scripts/automator/cloud-smoke.mjs` — 云函数冒烟（真云环境：建房/CAS/冲突）
+- 开发者工具 CLI（需扫码登录 + 服务端口；多 agent 共享规则见上节）：`cli open/preview/upload --project $(pwd)`；云函数部署 `cli cloud functions deploy --env cloud1-d2go4yxtv833a2113 --names <fn...> --remote-npm-install --project $(pwd)`
 
 ## 命名约定
 

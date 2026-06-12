@@ -1,9 +1,211 @@
-/* 全局样式 — WXAPP-2 起按设计稿填充 */
+@import "styles/tokens.wxss";
+
 page {
-  background: #f6f6f6;
-  font-size: 28rpx;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-size: var(--font-body);
+  font-family: -apple-system, "PingFang SC", "HarmonyOS Sans SC", "MiSans", sans-serif;
 }
 
 .page {
-  padding: 32rpx;
+  padding: var(--gutter);
+}
+
+/* ===== 公共组件（index / room / history 共用） ===== */
+
+.card {
+  background: var(--surface);
+  border: 1rpx solid var(--hairline);
+  border-radius: var(--radius-card);
+  padding: var(--s4);
+}
+
+.btn {
+  height: var(--touch-bar);
+  line-height: var(--touch-bar);
+  border-radius: var(--radius-control);
+  font-size: var(--font-title);
+  font-weight: 600;
+  padding: 0 var(--s3);
+  margin: 0;
+  background: transparent;
+  color: var(--text-primary);
+  border: 1rpx solid var(--hairline);
+}
+
+.btn::after {
+  border: none;
+}
+
+.btn--primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+  flex: 1;
+}
+
+.btn--primary[disabled] {
+  opacity: 0.4;
+  color: var(--on-accent);
+  background: var(--accent);
+}
+
+.btn--ghost {
+  background: transparent;
+}
+
+.btn--danger {
+  color: var(--danger);
+}
+
+.btn--secondary {
+  background: transparent;
+  color: var(--accent);
+  border: 1rpx solid var(--accent);
+}
+
+.btn--pressed {
+  opacity: 0.85;
+  transform: scale(0.98);
+}
+
+/* ===== 级牌记分牌（DESIGN.md §5 签名元素） ===== */
+
+.board__eyebrow {
+  font-size: var(--font-label);
+  font-weight: 500;
+  letter-spacing: 2rpx;
+  color: var(--accent);
+}
+
+.board__eyebrow--gold {
+  color: var(--gold-a);
+}
+
+.board__teams {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  margin-top: var(--s2);
+}
+
+.board__team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 200rpx;
+  padding-bottom: var(--s1);
+  border-bottom: 4rpx solid transparent;
+}
+
+.board__team--owner {
+  border-bottom-color: var(--accent);
+}
+
+.board__name {
+  font-size: var(--font-label);
+  font-weight: 500;
+}
+
+.board__name--t1 { color: var(--team-t1); }
+.board__name--t2 { color: var(--team-t2); }
+
+.board__level {
+  font-size: var(--font-level);
+  font-weight: 800;
+  line-height: 1;
+  font-feature-settings: "tnum";
+}
+
+.board__level--t1 { color: var(--team-t1); }
+.board__level--t2 { color: var(--team-t2); }
+.board__level--gold { color: var(--gold-a); }
+
+.board__vs {
+  font-size: var(--font-num-lg);
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.board__afail {
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+  margin-top: var(--s1);
+}
+
+.board__advance {
+  margin-top: var(--s3);
+}
+
+/* ===== 历史行（history / room 共用） ===== */
+
+.row {
+  display: flex;
+  margin-bottom: var(--s2);
+}
+
+.row__bar {
+  width: 6rpx;
+  border-radius: var(--radius-pill);
+  margin-right: var(--s3);
+  align-self: stretch;
+}
+
+.row__bar--t1 { background: var(--team-t1); }
+.row__bar--t2 { background: var(--team-t2); }
+
+.row__main {
+  flex: 1;
+}
+
+.row__line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.row__title {
+  font-size: var(--font-body);
+  font-weight: 600;
+  font-feature-settings: "tnum";
+}
+
+.row__up {
+  font-size: var(--font-body);
+  font-weight: 700;
+  color: var(--accent);
+  font-feature-settings: "tnum";
+}
+
+.row__ranks {
+  display: block;
+  margin-top: var(--s1);
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+  font-feature-settings: "tnum";
+}
+
+.row__note {
+  display: block;
+  margin-top: var(--s1);
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+}
+
+.row__meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--s1);
+}
+
+.row__ts {
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+  font-feature-settings: "tnum";
+}
+
+.empty {
+  color: var(--text-secondary);
+  font-size: var(--font-body);
 }

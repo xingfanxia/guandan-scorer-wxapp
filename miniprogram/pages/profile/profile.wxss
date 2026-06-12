@@ -1,1 +1,143 @@
-/* 玩家档案样式 — WXAPP-4 */
+/* 玩家档案 — 公共 .card 在 app.wxss */
+
+.section {
+  margin-top: var(--s3);
+}
+
+.section__title {
+  font-size: var(--font-title);
+  font-weight: 600;
+  margin-bottom: var(--s2);
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.bind__hint {
+  display: block;
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+  margin-bottom: var(--s2);
+}
+
+.bind__btn {
+  margin-top: var(--s2);
+  width: 100%;
+  height: var(--touch-min);
+  line-height: var(--touch-min);
+  font-size: var(--font-body);
+}
+
+.who__avatar {
+  width: 112rpx;
+  height: 112rpx;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+}
+
+.who__name {
+  display: block;
+  font-size: var(--font-title);
+  font-weight: 700;
+}
+
+.who__sub {
+  display: block;
+  margin-top: var(--s1);
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+  font-feature-settings: "tnum";
+}
+
+.stat-grid {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.stat {
+  width: 33.33%;
+  padding: var(--s2) 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.stat__num {
+  font-size: var(--font-num-lg);
+  font-weight: 700;
+  font-feature-settings: "tnum";
+}
+
+.stat__label {
+  margin-top: var(--s1);
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+}
+
+.honor {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: var(--touch-min);
+}
+
+/* :first-of-type 按标签类型匹配，view 同级里永不生效 —— 用相邻兄弟画分隔线 */
+.honor + .honor {
+  border-top: 1rpx solid var(--hairline);
+}
+
+.honor__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2rpx;
+  min-width: 0;
+  padding: var(--s1) 0;
+}
+
+.honor__title {
+  font-size: var(--font-body);
+  font-weight: 600;
+}
+
+.honor__caption {
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+}
+
+.honor__count {
+  font-size: var(--font-body);
+  color: var(--gold-a);
+  font-weight: 700;
+  font-feature-settings: "tnum";
+}
+
+.ach {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) 0;
+  border-top: 1rpx solid var(--hairline);
+}
+
+.ach:first-of-type {
+  border-top: none;
+}
+
+.ach__badge {
+  font-size: var(--font-num-lg);
+}
+
+.ach__name {
+  display: block;
+  font-size: var(--font-body);
+  font-weight: 600;
+}
+
+.ach__desc {
+  display: block;
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+}
