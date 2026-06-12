@@ -88,9 +88,10 @@ function wrapRankingTokens(playerRankings, fontSize, maxWidth, maxLines) {
  * @param {string|null} [opts.roomCode]
  * @param {{mvp: Array<{emoji,name,count}>, burden: Array<{emoji,name,count}>}|null} [opts.votes] - 观众投票（调用方从 vote_tally 取）
  * @param {string} [opts.timestamp] - 已格式化的当前时间（保持纯函数，时钟由调用方注入）
+ * @param {string} [opts.mvpTagline] - MVP 的玩家宣言（池玩家 tagline，web 版 MVP 引言对位）
  */
 export function buildPosterLayout(state, opts = {}) {
-  const { roomCode = null, votes = null, timestamp = '' } = opts;
+  const { roomCode = null, votes = null, timestamp = '', mvpTagline = '' } = opts;
   const W = POSTER_W;
   const ops = [];
   const text = (t, x, y, font, color, align) =>
@@ -123,6 +124,10 @@ export function buildPosterLayout(state, opts = {}) {
     if (mvp) {
       text(`MVP：${mvp.emoji}${mvp.name}（平均 ${mvp.avgRanking.toFixed(2)} 名）`, 40, y, 'bold 22px sans-serif', C.gold);
       y += 36;
+      if (mvpTagline) {
+        text(`“${String(mvpTagline).slice(0, 30)}”`, 40, y, 'italic 20px sans-serif', C.accent);
+        y += 32;
+      }
     }
     const last = history[history.length - 1];
     const durMs = last ? Number(last.sessionDuration) : 0;

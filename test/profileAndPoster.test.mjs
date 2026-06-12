@@ -230,3 +230,15 @@ describe('gameStore — review 补强（subscribe/setTeamName/中间索引回滚
     assert.match(b.msg, /axax/);
   });
 });
+
+describe('poster — MVP tagline 引言（web 手机版对位）', () => {
+  it('传 mvpTagline 渲染引号引言；不传不渲染；超长截断', () => {
+    const textsOf = (layout) => layout.ops.filter(o => o.type === 'text').map(o => o.text);
+    const withTag = textsOf(buildPosterLayout(endedState, { mvpTagline: '脱牌好差劲' })).join('\n');
+    assert.ok(withTag.includes('“脱牌好差劲”'));
+    const without = textsOf(buildPosterLayout(endedState, {})).join('\n');
+    assert.ok(!without.includes('“'));
+    const long = textsOf(buildPosterLayout(endedState, { mvpTagline: '九'.repeat(50) })).join('\n');
+    assert.ok(long.includes('“' + '九'.repeat(30) + '”'));
+  });
+});

@@ -466,14 +466,29 @@ Page({
     return votes.mvp.length || votes.burden.length ? votes : null;
   },
 
+  /** MVP 宣言（海报引言，web 版对位）：MVP 座位带池 handle 时取其 tagline */
+  async collectMvpTagline(s: { gameStatus: { ended?: boolean } | null; players: Array<{ id: number; handle?: string | null }> }) {
+    if (!s.gameStatus?.ended || !wx.cloud) return '';
+    const mvp = computeSessionMvp(s);
+    const handle = mvp && s.players.find((p) => p.id === mvp.id)?.handle;
+    if (!handle) return '';
+    const res = await wx.cloud.callFunction({ name: 'profile_get_by_handle', data: { handle } });
+    const r = (res.result || {}) as { ok: boolean; pool?: { tagline?: string } };
+    return (r.ok && r.pool && r.pool.tagline) || '';
+  },
+
   /** 生成战绩长图（对齐 web 手机版导出的信息密度）并存相册 */
   async onSavePoster() {
     const s = getStore().getState();
     wx.showLoading({ title: '生成长图…' });
-    const votes = await this.collectPosterVotes(s).catch(() => null);
+    const [votes, mvpTagline] = await Promise.all([
+      this.collectPosterVotes(s).catch(() => null),
+      this.collectMvpTagline(s).catch(() => '')
+    ]);
     const layout = buildPosterLayout(s, {
       roomCode: getOwnerSession().getCode(),
       votes,
+      mvpTagline,
       timestamp: new Date().toLocaleString('zh-CN', { hour12: false })
     });
     wx.createSelectorQuery()

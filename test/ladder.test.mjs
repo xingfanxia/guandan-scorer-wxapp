@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeLadderDeltas, applyLadderDelta, LADDER_BASE, LADDER_TEAM_K } from '../miniprogram/core/ladder.js';
+import { computeLadderDeltas, applyLadderDelta, seedLadderRating, LADDER_BASE, LADDER_TEAM_K } from '../miniprogram/core/ladder.js';
 
 const P = (id, team, rating, avgRanking) => ({ id, team, rating, avgRanking });
 
@@ -83,5 +83,31 @@ describe('ladder.applyLadderDelta（累计 {rating, sessions, peak}）', () => {
     assert.deepEqual(second, { rating: 975, sessions: 2, peak: 1020 });
     const floor = applyLadderDelta({ rating: 10, sessions: 5, peak: 1100 }, -50);
     assert.deepEqual(floor, { rating: 0, sessions: 6, peak: 1100 });
+  });
+});
+
+describe('ladder.seedLadderRating（web 历史折算起评分）', () => {
+  it('零场/缺数据 → 1000；不会产出 NaN', () => {
+    assert.equal(seedLadderRating(undefined), LADDER_BASE);
+    assert.equal(seedLadderRating({}), LADDER_BASE);
+    assert.equal(seedLadderRating({ sessionsPlayed: 0, sessionsWon: 0 }), LADDER_BASE);
+    assert.equal(seedLadderRating({ sessionsPlayed: 5 }), Math.round(1000 + (5 / 20) * 500 * -0.5));
+  });
+
+  it('强历史（高胜率+靠前名次）> 1000；弱历史 < 1000；强弱有区分度', () => {
+    const strong = seedLadderRating({ sessionsPlayed: 18, sessionsWon: 13, avgRankingPerSession: 3.2 });
+    const weak = seedLadderRating({ sessionsPlayed: 18, sessionsWon: 5, avgRankingPerSession: 5.8 });
+    assert.ok(strong > 1050, `强历史应明显高于 1000，got ${strong}`);
+    assert.ok(weak < 950, `弱历史应明显低于 1000，got ${weak}`);
+    assert.ok(strong - weak > 150, `强弱差距应有区分度，got ${strong - weak}`);
+  });
+
+  it('场次少 → 贴 1000（置信度折扣）；极端值钳在 [700,1300]', () => {
+    const few = seedLadderRating({ sessionsPlayed: 2, sessionsWon: 2, avgRankingPerSession: 1.5 });
+    const many = seedLadderRating({ sessionsPlayed: 20, sessionsWon: 20, avgRankingPerSession: 1.5 });
+    assert.ok(Math.abs(few - 1000) < Math.abs(many - 1000), '少场次应比多场次更贴 1000');
+    assert.ok(many <= 1300 && many >= 700);
+    assert.equal(seedLadderRating({ sessionsPlayed: 100, sessionsWon: 100, avgRankingPerSession: 1 }), 1300);
+    assert.equal(seedLadderRating({ sessionsPlayed: 100, sessionsWon: 0, avgRankingPerSession: 8 }), 700);
   });
 });

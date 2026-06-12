@@ -9,7 +9,8 @@ interface PoolRow {
   sessionsPlayed: number;
   bound: boolean;
   boundToMe: boolean;
-  ladder: number | null;
+  ladder: number;
+  ladderProvisional: boolean;
   wxSessions: number;
 }
 
@@ -43,7 +44,8 @@ Page({
       const rows = (r.players || []).map((p, i) => ({
         ...p,
         rank: i + 1,
-        ladderText: p.ladder === null ? '—' : String(p.ladder)
+        // * = 起评分（web 历史折算，还没打过小程序场）
+        ladderText: Number.isFinite(p.ladder) ? `${p.ladder}${p.ladderProvisional ? '*' : ''}` : '—'
       }));
       this.setData({ loading: false, rows });
     }).catch(() => {

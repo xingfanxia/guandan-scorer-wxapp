@@ -68,6 +68,20 @@ function applyLadderDelta(ladder, delta) {
   const peak = Math.max(rating, Number.isFinite(Number(cur.peak)) ? Number(cur.peak) : LADDER_BASE);
   return { rating, sessions, peak };
 }
+
+function seedLadderRating(webStats) {
+  const s = Math.max(0, Number(webStats && webStats.sessionsPlayed) || 0);
+  if (s <= 0) return LADDER_BASE;
+  const won = Math.min(s, Math.max(0, Number(webStats.sessionsWon) || 0));
+  const winRate = won / s;
+  const avgRank = Number(webStats.avgRankingPerSession);
+  const rankNorm = Number.isFinite(avgRank) && avgRank >= 1
+    ? (4.5 - Math.min(avgRank, 8)) / 3.5
+    : 0;
+  const conf = Math.min(s, 20) / 20;
+  const rating = Math.round(LADDER_BASE + conf * (500 * (winRate - 0.5) + 100 * rankNorm));
+  return Math.max(700, Math.min(1300, rating));
+}
 // ===== 天梯分镜像结束 =====
 
 function freshStats() {
@@ -224,20 +238,23 @@ exports.main = async (event) => {
       identityByOpenid.set(claim.openid, { nickname: claim.nickname, avatarUrl: claim.avatarUrl });
     }
   }
-  // pool 绑定兜底（认领过的座位不覆盖）
-  const handles = snapshotPlayers
-    .filter(p => p && p.handle && !openidByPlayerId.has(p.id))
+  // pool 文档一次查全（两用：① 未认领座位的绑定兜底 ② 天梯起评分的 web 历史）
+  const allHandles = snapshotPlayers
+    .filter(p => p && p.handle)
     .map(p => String(p.handle).toLowerCase());
-  if (handles.length > 0) {
+  const poolByHandle = new Map();
+  if (allHandles.length > 0) {
     const _cmd = db.command;
     const poolRes = await db.collection('pool')
-      .where({ handle: _cmd.in(handles), boundOpenid: _cmd.exists(true) })
+      .where({ handle: _cmd.in(allHandles) })
+      .limit(100)
       .get()
       .catch(() => ({ data: [] }));
-    const boundByHandle = new Map(poolRes.data.map(d => [d.handle, d]));
+    for (const d of poolRes.data) poolByHandle.set(d.handle, d);
+    // 绑定兜底（认领过的座位不覆盖）
     for (const p of snapshotPlayers) {
       if (!p || !p.handle || openidByPlayerId.has(p.id)) continue;
-      const pool = boundByHandle.get(String(p.handle).toLowerCase());
+      const pool = poolByHandle.get(String(p.handle).toLowerCase());
       if (pool && pool.boundOpenid) {
         openidByPlayerId.set(p.id, pool.boundOpenid);
         if (!identityByOpenid.has(pool.boundOpenid)) {
@@ -245,6 +262,12 @@ exports.main = async (event) => {
         }
       }
     }
+  }
+  const webStatsByPlayerId = new Map();
+  for (const p of snapshotPlayers) {
+    if (!p || !p.handle) continue;
+    const pool = poolByHandle.get(String(p.handle).toLowerCase());
+    if (pool && pool.webStats) webStatsByPlayerId.set(p.id, pool.webStats);
   }
 
   if (openidByPlayerId.size === 0) {
@@ -296,12 +319,18 @@ exports.main = async (event) => {
       .map(id => openidByPlayerId.get(Number(id)))
       .filter(Boolean);
 
-    // 天梯分：评分只取服务端 players 文档（client 不可注入）；未绑定玩家按 LADDER_BASE 计入队伍均分
-    const ratingByOpenid = new Map();
+    // 天梯分：评分只取服务端 players 文档（client 不可注入）。
+    // 没挣过分的人（含未绑定）用 web 历史折算起评分计入队伍均分 —— 期望胜率比裸 1000 准。
+    const ladderByOpenid = new Map();
     for (const [openid, entry] of touched) {
-      const ladder = entry.doc.stats.ladder;
-      ratingByOpenid.set(openid, ladder && Number.isFinite(Number(ladder.rating)) ? Number(ladder.rating) : LADDER_BASE);
+      ladderByOpenid.set(openid, entry.doc.stats.ladder || null);
     }
+    const ratingFor = (playerId) => {
+      const openid = openidByPlayerId.get(playerId);
+      const lad = openid ? ladderByOpenid.get(openid) : null;
+      if (lad && Number(lad.sessions) > 0 && Number.isFinite(Number(lad.rating))) return Number(lad.rating);
+      return seedLadderRating(webStatsByPlayerId.get(playerId));
+    };
     const avgRankingByPlayerId = new Map(sessions.map(s => [Number(s.playerId), Math.min(MAX_RANK, nonNeg(s.avgRanking))]));
     const winnerTeam = (snapshot.gameStatus && snapshot.gameStatus.winnerKey) === 't2' ? 2 : 1;
     const ladderDeltas = computeLadderDeltas({
@@ -310,7 +339,7 @@ exports.main = async (event) => {
       players: snapshotPlayers.map(p => ({
         id: p.id,
         team: Number(p.team),
-        rating: openidByPlayerId.has(p.id) ? ratingByOpenid.get(openidByPlayerId.get(p.id)) : undefined,
+        rating: ratingFor(p.id),
         avgRanking: avgRankingByPlayerId.has(Number(p.id)) ? avgRankingByPlayerId.get(Number(p.id)) : null
       }))
     });
@@ -325,7 +354,13 @@ exports.main = async (event) => {
       };
       if (applySession(entry.doc.stats, filtered, keys.gameKey, authoritativeMode)) {
         applied++;
-        // 与战绩同一道 gameKey 幂等闸：只有新入库的场次才动天梯分
+        // 与战绩同一道 gameKey 幂等闸：只有新入库的场次才动天梯分。
+        // 首次入梯（sessions=0）：用 web 历史起评分垫底，不覆盖已挣的分
+        const lad = entry.doc.stats.ladder;
+        if ((!lad || !Number(lad.sessions)) && webStatsByPlayerId.has(Number(s.playerId))) {
+          const seed = seedLadderRating(webStatsByPlayerId.get(Number(s.playerId)));
+          entry.doc.stats.ladder = { rating: seed, sessions: 0, peak: seed };
+        }
         entry.doc.stats.ladder = applyLadderDelta(entry.doc.stats.ladder, ladderDeltas.get(String(s.playerId)) || 0);
       } else skipped++;
       const identity = identityByOpenid.get(openid) || {};

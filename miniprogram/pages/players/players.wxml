@@ -30,7 +30,7 @@
       <text class="lad__cell lad__num">{{p.ladderText}}</text>
       <text class="lad__cell lad__num">{{p.sessionsPlayed + p.wxSessions}}</text>
     </view>
-    <view class="lad__hint">点玩家看完整档案 · 天梯分按场结算（绑定微信后开始累计）</view>
+    <view class="lad__hint">点玩家看完整档案 · 带 * 的是按 web 历史折算的起评分，打过小程序场后开始实结</view>
   </view>
 
   <view class="card empty" wx:if="{{detailLoading}}">读取档案…</view>

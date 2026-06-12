@@ -56,6 +56,28 @@ export function computeLadderDeltas({ mode, winnerTeam, players }) {
   return deltas;
 }
 
+/**
+ * 起评分：从 web 版历史战绩折算首次天梯分（用户 2026-06-12 拍板）。
+ * 起评分 = 1000 + 置信度×(500×(胜率−0.5) + 100×(4.5−场均名次)/3.5)，钳 [700,1300]；
+ * 置信度 = min(场次,20)/20 —— 场次少贴 1000 起步。只在 ladder.sessions===0 时用，
+ * 永不覆盖已挣的分。场均名次按 8 人局中位 4.5 归一（web 历史以 8 人局为主，
+ * 混入 4/6 人局会被 100 的低权重钳住失真）。
+ * @param {{sessionsPlayed?: number, sessionsWon?: number, avgRankingPerSession?: number}} webStats
+ */
+export function seedLadderRating(webStats) {
+  const s = Math.max(0, Number(webStats && webStats.sessionsPlayed) || 0);
+  if (s <= 0) return LADDER_BASE;
+  const won = Math.min(s, Math.max(0, Number(webStats.sessionsWon) || 0));
+  const winRate = won / s;
+  const avgRank = Number(webStats.avgRankingPerSession);
+  const rankNorm = Number.isFinite(avgRank) && avgRank >= 1
+    ? (4.5 - Math.min(avgRank, 8)) / 3.5
+    : 0;
+  const conf = Math.min(s, 20) / 20;
+  const rating = Math.round(LADDER_BASE + conf * (500 * (winRate - 0.5) + 100 * rankNorm));
+  return Math.max(700, Math.min(1300, rating));
+}
+
 /** 把一场的增量应用到单人 ladder 累计（{rating, sessions, peak}，缺省补全） */
 export function applyLadderDelta(ladder, delta) {
   const cur = ladder && typeof ladder === 'object' ? ladder : {};
