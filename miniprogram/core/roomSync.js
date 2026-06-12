@@ -140,6 +140,18 @@ export function createOwnerRoomSession(store, { initial, onSessionChange } = {})
       return { ok: true, code };
     },
 
+    /**
+     * 与当前房间脱钩（开新一局时用）：旧房间留在云端封存，本会话不再推送；
+     * 下一次开打/开围观会创建全新房间 —— 统计/投票/认领严格跟房间走。
+     */
+    detach() {
+      if (pushTimer) clearTimeout(pushTimer);
+      pushTimer = null;
+      code = null;
+      version = 0;
+      notifySession();
+    },
+
     destroy() {
       unsubscribe();
       if (pushTimer) clearTimeout(pushTimer);

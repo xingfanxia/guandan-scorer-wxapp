@@ -239,7 +239,7 @@ Page({
     if (s.history.length > 0) {
       wx.showModal({
         title: `开新一局（${mode}人）？`,
-        content: '本场比分与历史将清零。',
+        content: '本场比分与历史将清零；围观房间换新（旧房间留档）。',
         confirmText: '开新一局',
         success: (m) => {
           if (!m.confirm) return;
@@ -250,7 +250,9 @@ Page({
             store.resetGame(false);
             res = store.setMode(mode);
           }
+          getOwnerSession().detach(); // 新一局 = 新房间，统计跟房间走
           this.order = [];
+          this.setData({ roomCode: '' });
           this.refresh();
         }
       });
@@ -541,11 +543,13 @@ Page({
         const preserve = sheet.tapIndex === 0;
         wx.showModal({
           title: preserve ? '重置整场比赛？' : '清空全部？',
-          content: preserve ? '比分与历史清零，玩家保留。' : '比分、历史、玩家全部清空。',
+          content: (preserve ? '比分与历史清零，玩家保留。' : '比分、历史、玩家全部清空。') + '围观房间换新（旧房间留档）。',
           success: (res) => {
             if (!res.confirm) return;
             getStore().resetGame(preserve);
+            getOwnerSession().detach(); // 新一局 = 新房间
             this.order = [];
+            this.setData({ roomCode: '' });
             this.refresh();
           }
         });
