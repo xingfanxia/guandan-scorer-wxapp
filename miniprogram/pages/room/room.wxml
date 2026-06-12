@@ -39,10 +39,10 @@
         <text class="seat__claim seat__claim--mine" wx:if="{{s.mine}}">我 · 点击释放</text>
         <button
           wx:if="{{!s.claim}}"
-          class="btn btn--secondary seat__btn"
+          class="btn btn--secondary seat__btn {{s.suggestClaim ? 'seat__btn--suggest' : ''}}"
           data-id="{{s.id}}"
           bindtap="onStartClaim"
-        >认领</button>
+        >{{s.suggestClaim ? '这是我' : '认领'}}</button>
         <view wx:if="{{s.mine}}" class="seat__release" data-id="{{s.id}}" bindtap="onRelease"></view>
       </view>
 
@@ -106,7 +106,36 @@
           bindtap="onSubmitVote"
         >{{myVoted ? '改票' : '投票'}}</button>
         <text class="vote__total" wx:if="{{tally.total}}">已收 {{tally.total}} 票</text>
+        <button
+          wx:if="{{isOwner && tally.total}}"
+          class="btn btn--ghost btn--danger vote__reset"
+          bindtap="onResetVotes"
+        >重新开票</button>
       </view>
+    </view>
+
+    <!-- 本场统计 -->
+    <view class="card section stats" wx:if="{{stats && stats.rows.length > 0}}">
+      <view class="section__title">本场统计 · {{stats.gamesInSession}} 局</view>
+      <view class="stats__head">
+        <text class="stats__cell stats__cell--name">玩家</text>
+        <text class="stats__cell">平均</text>
+        <text class="stats__cell">头游</text>
+        <text class="stats__cell">垫底</text>
+      </view>
+      <view class="stats__row" wx:for="{{stats.rows}}" wx:for-item="r" wx:key="id">
+        <text class="stats__cell stats__cell--name stats__cell--t{{r.team}}">{{r.emoji}} {{r.name}}</text>
+        <text class="stats__cell stats__num">{{r.avg}}</text>
+        <text class="stats__cell stats__num">{{r.first}}</text>
+        <text class="stats__cell stats__num">{{r.last}}</text>
+      </view>
+      <block wx:if="{{stats.honorsUnlocked && stats.honorRows.length > 0}}">
+        <view class="stats__honors-title">本场荣誉</view>
+        <view class="honor-line" wx:for="{{stats.honorRows}}" wx:for-item="h" wx:key="title">
+          <text class="honor-line__title">{{h.title}}</text>
+          <text class="honor-line__holder">{{h.emoji}} {{h.name}}</text>
+        </view>
+      </block>
     </view>
 
     <!-- 逐局记录 -->
@@ -120,6 +149,7 @@
             <text class="row__title">第 {{row.seq}} 局 · {{row.win}} {{row.combo}} → 打{{row.newLevel}}</text>
             <text class="row__up">+{{row.up}}</text>
           </view>
+          <text class="row__ranks" wx:if="{{row.rankingLine}}">{{row.rankingLine}}</text>
           <text class="row__note" wx:if="{{row.aNote}}">{{row.aNote}}</text>
         </view>
       </view>

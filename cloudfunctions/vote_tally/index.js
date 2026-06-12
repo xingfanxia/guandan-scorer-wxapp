@@ -13,7 +13,7 @@ exports.main = async (event) => {
   const code = String((event && event.code) || '').trim().toUpperCase();
   const sessionKey = String((event && event.sessionKey) || '');
   if (!/^[A-Z][0-9A-Z]{5}$/.test(code)) return { ok: false, error: 'invalid_code' };
-  if (!sessionKey) return { ok: false, error: 'invalid_session_key' };
+  if (!sessionKey) return { ok: false, error: 'invalid_vote_session' };
 
   const db = cloud.database();
   try {

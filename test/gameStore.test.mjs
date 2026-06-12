@@ -336,3 +336,35 @@ describe('gameStore — 8人局（单设备即可完整运行，玩家=座位非
     assert.deepEqual(store.getState().aFail, { t1: 1, t2: 0 });
   });
 });
+
+describe('gameStore — 会话锁定（开打后名单/分队/人数冻结，换人数=开新一局）', () => {
+  it('开打后 setMode 拒绝并提示开新一局', () => {
+    const store = fourPlayerStore();
+    store.applyResult('t1', [1, 2]);
+    const res = store.setMode('8');
+    assert.equal(res.ok, false);
+    assert.match(res.msg, /新一局|重置/);
+    assert.equal(store.getState().mode, '4');
+  });
+
+  it('开打后 加人/删人/换队/随机分队 全部拒绝；改名/换表情仍允许', () => {
+    const store = fourPlayerStore();
+    store.applyResult('t1', [1, 2]);
+    const pid = store.getState().players[0].id;
+
+    assert.equal(store.addPlayer({ name: '新', emoji: '🙂', team: 1 }).ok, false);
+    assert.equal(store.removePlayer(pid).ok, false);
+    assert.equal(store.updatePlayer(pid, { team: 2 }).ok, false);
+    assert.equal(store.shuffleTeams(() => 0.5).ok, false);
+    assert.equal(store.updatePlayer(pid, { name: '王哥' }).ok, true);
+    assert.equal(store.getState().players[0].name, '王哥');
+  });
+
+  it('重置后解锁：可换模式、改名单', () => {
+    const store = fourPlayerStore();
+    store.applyResult('t1', [1, 2]);
+    store.resetGame(true);
+    assert.equal(store.setMode('8').ok, true);
+    assert.equal(store.addPlayer({ name: '五', emoji: '🙂', team: 1 }).ok, true);
+  });
+});

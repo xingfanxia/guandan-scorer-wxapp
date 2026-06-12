@@ -115,6 +115,7 @@ font-family: -apple-system, "PingFang SC", "HarmonyOS Sans SC", "MiSans", sans-s
 
 ## 10. Token 落地文件
 
-- `miniprogram/styles/tokens.wxss` —— 本文件 §2-§4 的唯一实现处，`app.wxss` 首行 `@import`。
+- `miniprogram/styles/tokens.wxss` —— 本文件 §2-§4 在 WXSS 体系内的唯一实现处，`app.wxss` 首行 `@import`。
 - `theme.json` —— 仅窗口 chrome 变量。
-- 验收：grep 全部页面 WXSS，出现 `#` 色值或 `rgba(` 即违规（只允许出现在 tokens.wxss）。
+- **已知例外（文档化）**：`core/poster.js` 的 canvas 镜像常量（canvas 吃不到 CSS 变量，light 色板的逐值镜像）与 `pages/index/index.ts` 的 switch `color` 属性映射（WXML 属性不支持 var()）。改 tokens 时这两处必须同步。
+- 验收：grep 全部页面 WXSS，出现 `#` 色值或 `rgba(` 即违规（只允许出现在 tokens.wxss + 上述两个文档化例外）。

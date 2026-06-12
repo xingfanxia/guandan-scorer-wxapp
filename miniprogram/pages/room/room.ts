@@ -1,6 +1,6 @@
 // 围观页：实时比分（watch+轮询）、座位认领（微信身份）、结束后投票
 import { watchRoom } from '../../core/roomSync.js';
-import { buildBoardVM, buildHistoryRows } from '../../core/viewModel.js';
+import { buildBoardVM, buildHistoryRows, buildSessionStatsVM } from '../../core/viewModel.js';
 import { computeSessionMvp } from '../../core/victoryStats.js';
 import { deriveVoteSessionKey } from '../../shared-logic/voteSessionKey.js';
 
@@ -9,8 +9,10 @@ interface SeatVM {
   name: string;
   emoji: string;
   team: number;
+  handle: string;
   claim: { nickname: string } | null;
   mine: boolean;
+  suggestClaim: boolean; // 这个座位的 handle 绑定的是我 → 一键认领
 }
 
 Page({
@@ -20,6 +22,7 @@ Page({
     loadError: '',
     vm: null as unknown as ReturnType<typeof buildBoardVM> | null,
     rows: [] as unknown[],
+    stats: null as unknown,
     seats: [] as SeatVM[],
     channelText: '',
     // 认领表单
@@ -31,12 +34,16 @@ Page({
     voteMvp: 0,
     voteBurden: 0,
     tally: { mvp: {} as Record<string, number>, burden: {} as Record<string, number>, total: 0 },
-    myVoted: false
+    myVoted: false,
+    isOwner: false
   },
 
-  watcher: null as null | { stop(): void },
+  watcher: null as null | { stop(): void; refresh(): void },
   myOpenid: '',
+  myBoundHandle: '',
+  myBoundName: '',
   sessionKey: '',
+  lastChannel: 'poll',
   lastDoc: null as null | Record<string, unknown>,
 
   onLoad(options: Record<string, string | undefined>) {
@@ -51,8 +58,19 @@ Page({
     wx.cloud.callFunction({ name: 'profile_get' }).then((res) => {
       const r = (res.result || {}) as { openid?: string };
       this.myOpenid = r.openid || '';
-      if (this.lastDoc) this.renderDoc(this.lastDoc, 'watch');
+      if (this.lastDoc) this.renderDoc(this.lastDoc, this.lastChannel);
     }).catch(() => { /* 不阻塞围观 */ });
+
+    // 我的玩家池绑定（座位「一键认领」提示用）
+    wx.cloud.callFunction({ name: 'pool_list' }).then((res) => {
+      const r = (res.result || {}) as { ok: boolean; players?: Array<{ handle: string; displayName: string; boundToMe: boolean }> };
+      const mine = (r.players || []).find(p => p.boundToMe);
+      if (mine) {
+        this.myBoundHandle = mine.handle;
+        this.myBoundName = mine.displayName;
+        if (this.lastDoc) this.renderDoc(this.lastDoc, this.lastChannel);
+      }
+    }).catch(() => { /* 池子不可用不影响围观 */ });
 
     this.watcher = watchRoom(code, {
       onSnapshot: (doc: Record<string, unknown>, channel: string) => {
@@ -70,18 +88,30 @@ Page({
     });
   },
 
+  onShow() {
+    // 后台切回/页面栈返回时主动重同步（watch 可能在后台静默死亡）
+    if (this.watcher) this.watcher.refresh();
+  },
+
   renderDoc(doc: Record<string, unknown>, channel: string) {
+    this.lastChannel = channel;
     const s = doc.snapshot as Record<string, unknown> | undefined;
     if (!s) return;
     const claims = (doc.claims || {}) as Record<string, { openid: string; nickname: string }>;
     const players = (s.players || []) as Array<{ id: number; name: string; emoji: string; team: number }>;
 
-    const seats: SeatVM[] = players.map(p => {
+    const seats: SeatVM[] = (players as Array<{ id: number; name: string; emoji: string; team: number; handle?: string }>).map(p => {
       const claim = claims[String(p.id)] || null;
+      const handle = p.handle || '';
       return {
-        ...p,
+        id: p.id,
+        name: p.name,
+        emoji: p.emoji,
+        team: p.team,
+        handle,
         claim: claim ? { nickname: claim.nickname } : null,
-        mine: Boolean(claim && this.myOpenid && claim.openid === this.myOpenid)
+        mine: Boolean(claim && this.myOpenid && claim.openid === this.myOpenid),
+        suggestClaim: Boolean(!claim && handle && this.myBoundHandle && handle === this.myBoundHandle)
       };
     });
 
@@ -91,14 +121,27 @@ Page({
       const m = computeSessionMvp(s);
       if (m) mvp = { name: m.name, emoji: m.emoji, avg: m.avgRanking.toFixed(2) };
       const voteEpoch = Number(doc.voteEpoch || 0);
-      this.sessionKey = deriveVoteSessionKey({
+      const newKey = deriveVoteSessionKey({
         roomCode: this.data.code,
         gameStatus: s.gameStatus,
         history: s.history,
         finishedAt: null,
         endGameVotesHistory: new Array(voteEpoch).fill(0)
       }) || '';
-      if (this.sessionKey && !this.data.tally.total) this.fetchTally();
+      if (newKey !== this.sessionKey) {
+        // 新一轮投票窗口（重新开票/撤销后再通关）：旧计票与已投状态全部作废
+        this.sessionKey = newKey;
+        this.setData({
+          tally: { mvp: {}, burden: {}, total: 0 },
+          myVoted: false,
+          voteMvp: 0,
+          voteBurden: 0
+        });
+        if (newKey) this.fetchTally();
+      }
+    } else if (this.sessionKey) {
+      this.sessionKey = '';
+      this.setData({ tally: { mvp: {}, burden: {}, total: 0 }, myVoted: false, voteMvp: 0, voteBurden: 0 });
     }
 
     this.setData({
@@ -106,16 +149,44 @@ Page({
       loadError: '',
       vm,
       rows: buildHistoryRows((s.history || []) as Array<Record<string, unknown>>),
+      stats: buildSessionStatsVM(s),
       seats,
       mvp,
+      isOwner: Boolean(this.myOpenid && doc.ownerOpenid === this.myOpenid),
       channelText: channel === 'watch' ? '实时同步中' : '轮询同步中'
+    });
+  },
+
+  /** 房主：清空本轮投票重新开票（voteEpoch+1 → 新 sessionKey） */
+  onResetVotes() {
+    if (!this.sessionKey) return;
+    wx.showModal({
+      title: '重新开票？',
+      content: '本轮已收的票会清空，所有人可重新投。',
+      success: (m) => {
+        if (!m.confirm) return;
+        wx.cloud.callFunction({
+          name: 'vote_reset',
+          data: { code: this.data.code, sessionKey: this.sessionKey }
+        }).then((res) => {
+          const r = (res.result || {}) as { ok: boolean; message?: string };
+          wx.showToast({ title: r.ok ? '已重新开票' : (r.message || '操作失败'), icon: 'none' });
+          if (this.watcher) this.watcher.refresh();
+        }).catch(() => wx.showToast({ title: '操作失败，检查网络', icon: 'none' }));
+      }
     });
   },
 
   /* ===== 座位认领 ===== */
 
   onStartClaim(e: WechatMiniprogram.TouchEvent) {
-    this.setData({ claimingSeatId: Number(e.currentTarget.dataset.id) });
+    const seatId = Number(e.currentTarget.dataset.id);
+    const seat = (this.data.seats as SeatVM[]).find(s => s.id === seatId);
+    // 绑定过玩家池身份 → 昵称预填，一键确认
+    this.setData({
+      claimingSeatId: seatId,
+      claimNickname: seat && seat.suggestClaim ? this.myBoundName : this.data.claimNickname
+    });
   },
 
   onChooseAvatar(e: WechatMiniprogram.CustomEvent<{ avatarUrl: string }>) {
@@ -165,7 +236,14 @@ Page({
         wx.cloud.callFunction({
           name: 'room_claim_seat',
           data: { code: this.data.code, playerId: seatId, action: 'release' }
-        }).then(() => this.refreshOnce());
+        }).then((res) => {
+          const r = (res.result || {}) as { ok: boolean; message?: string };
+          if (!r.ok) {
+            wx.showToast({ title: r.message || '释放失败', icon: 'none' });
+            return;
+          }
+          this.refreshOnce();
+        }).catch(() => wx.showToast({ title: '释放失败，检查网络', icon: 'none' }));
       }
     });
   },

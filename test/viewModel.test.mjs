@@ -81,3 +81,23 @@ describe('roomSync.buildRoomSnapshot', () => {
     assert.equal(snap.teamLevels.t1, '5');
   });
 });
+
+describe('viewModel.buildHistoryRows — 逐局全员排名行（web 组合列对位）', () => {
+  it('rankingLine 按名次升序拼接 emoji+名字；缺 playerRankings 时为空串', () => {
+    
+    const rows = buildHistoryRows([
+      {
+        win: '蓝队', winKey: 't1', combo: '(1,2)', up: 3, t1: '5', t2: '2', ts: 'x',
+        playerRankings: {
+          2: { id: 2, name: '塔', emoji: '🍎', team: 1 },
+          1: { id: 1, name: '超', emoji: '🐸', team: 1 },
+          4: { id: 4, name: '大', emoji: '🐢', team: 2 },
+          3: { id: 3, name: '姐', emoji: '🐱', team: 2 }
+        }
+      },
+      { win: '红队', winKey: 't2', combo: '(1,3)', up: 2, t1: '5', t2: '4', ts: 'y' }
+    ]);
+    assert.equal(rows[1].rankingLine, '1.🐸超  2.🍎塔  3.🐱姐  4.🐢大');
+    assert.equal(rows[0].rankingLine, '');
+  });
+});

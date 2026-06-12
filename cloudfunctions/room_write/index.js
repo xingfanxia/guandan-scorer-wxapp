@@ -46,7 +46,8 @@ exports.main = async (event) => {
       .where({ _id: code, ownerOpenid: OPENID, version: baseVersion })
       .update({
         data: {
-          snapshot,
+          // _.set：整对象替换。普通嵌套对象是合并语义，快照删字段时围观端会读到僵尸数据
+          snapshot: _.set(snapshot),
           mode: String(snapshot.mode),
           version: _.inc(1),
           updatedAt: db.serverDate(),

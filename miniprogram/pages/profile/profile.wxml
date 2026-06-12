@@ -3,7 +3,13 @@
   <view class="card empty" wx:if="{{loading}}">读取档案…</view>
 
   <view class="card empty" wx:if="{{!loading && !hasProfile}}">
-    还没有战绩 —— 在房间页认领座位，比赛结束后房主点「战绩入库」就有了
+    <view>还没有战绩 —— 在房间页认领座位，比赛结束后房主点「战绩入库」就有了</view>
+    <button class="btn btn--secondary bind__btn" bindtap="onBindWeb">绑定 web 版玩家身份</button>
+  </view>
+
+  <view class="card section bind" wx:if="{{!loading && hasProfile && !boundHandle}}">
+    <text class="bind__hint">打过 web 版（gd.ax0x.ai）？绑定后老战绩并进来</text>
+    <button class="btn btn--secondary bind__btn" bindtap="onBindWeb">绑定 web 版玩家身份</button>
   </view>
 
   <block wx:if="{{!loading && hasProfile}}">
@@ -12,7 +18,7 @@
       <image wx:if="{{avatarUrl}}" class="who__avatar" src="{{avatarUrl}}" />
       <view class="who__id">
         <text class="who__name">{{displayName || '无名牌手'}}</text>
-        <text class="who__sub">{{summary.sessionsPlayed}} 场 · 胜率 {{summary.winRate}}</text>
+        <text class="who__sub">{{summary.sessionsPlayed}} 场 · 胜率 {{summary.winRate}}{{boundHandle ? ' · @' + boundHandle : ''}}</text>
       </view>
     </view>
 

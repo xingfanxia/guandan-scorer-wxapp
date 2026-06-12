@@ -12,7 +12,7 @@ exports.main = async (event) => {
   const code = String((event && event.code) || '').trim().toUpperCase();
   const sessionKey = String((event && event.sessionKey) || '');
   if (!/^[A-Z][0-9A-Z]{5}$/.test(code)) return { ok: false, error: 'invalid_code' };
-  if (!sessionKey) return { ok: false, error: 'invalid_session_key' };
+  if (!sessionKey) return { ok: false, error: 'invalid_vote_session' };
 
   const db = cloud.database();
   const room = await db.collection('rooms').doc(code).get().catch(() => null);
@@ -21,6 +21,11 @@ exports.main = async (event) => {
 
   try {
     const res = await db.collection('votes').where({ code, sessionKey }).remove();
+    // voteEpoch+1：下一轮投票派生出新 sessionKey；version+1 让围观端感知
+    const _ = db.command;
+    await db.collection('rooms').doc(code).update({
+      data: { voteEpoch: _.inc(1), version: _.inc(1), updatedAt: db.serverDate() }
+    });
     return { ok: true, removed: res.stats.removed };
   } catch (err) {
     console.error('vote_reset failed:', err);

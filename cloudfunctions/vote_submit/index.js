@@ -16,7 +16,7 @@ exports.main = async (event) => {
   const vote = (event && event.vote) || {};
 
   if (!/^[A-Z][0-9A-Z]{5}$/.test(code)) return { ok: false, error: 'invalid_code' };
-  if (!sessionKey || sessionKey.length > 256) return { ok: false, error: 'invalid_session_key' };
+  if (!sessionKey || sessionKey.length > 256) return { ok: false, error: 'invalid_vote_session' };
   const mvp = Number(vote.mvp);
   const burden = Number(vote.burden);
   if (!Number.isSafeInteger(mvp) || !Number.isSafeInteger(burden)) {

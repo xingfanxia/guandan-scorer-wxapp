@@ -81,7 +81,8 @@ export function drawPoster(ctx, state, roomCode) {
     y += 140;
   }
 
-  // 荣誉（最多 8 行）
+  // 荣誉 —— 纵向预算驱动：永不越过底部 footer 区（POSTER_H-140 以下保留）
+  const maxContentY = POSTER_H - 140;
   const honorLines = [];
   for (const [pid, titles] of Object.entries(honors)) {
     const p = playerById.get(Number(pid));
@@ -90,28 +91,31 @@ export function drawPoster(ctx, state, roomCode) {
       honorLines.push(`${displayHonorTitle(t)} · ${p.emoji} ${p.name}`);
     }
   }
-  if (honorLines.length > 0) {
+  if (honorLines.length > 0 && y + 96 < maxContentY) {
     ctx.fillStyle = C.accent;
     ctx.font = '500 26px sans-serif';
     ctx.fillText('本场荣誉', POSTER_W / 2, y);
     y += 50;
     ctx.fillStyle = C.text;
     ctx.font = '400 30px sans-serif';
-    for (const line of honorLines.slice(0, 8)) {
+    let drawn = 0;
+    for (const line of honorLines) {
+      if (y + 46 + 76 > maxContentY) break; // 留出「…等 N 项」+「共 N 局」空间
       ctx.fillText(line, POSTER_W / 2, y);
       y += 46;
+      drawn += 1;
     }
-    if (honorLines.length > 8) {
+    if (drawn < honorLines.length) {
       ctx.fillStyle = C.secondary;
       ctx.fillText(`…等 ${honorLines.length} 项`, POSTER_W / 2, y);
       y += 46;
     }
   }
 
-  // 共 N 局
+  // 共 N 局（钳在内容预算内）
   ctx.fillStyle = C.secondary;
   ctx.font = '400 26px sans-serif';
-  ctx.fillText(`共 ${state.history.length} 局`, POSTER_W / 2, y + 30);
+  ctx.fillText(`共 ${state.history.length} 局`, POSTER_W / 2, Math.min(y + 30, maxContentY));
 
   // 底部
   ctx.fillStyle = C.secondary;

@@ -79,7 +79,8 @@
   <view class="card section">
     <view class="section__head">
       <text class="section__title">玩家</text>
-      <text class="section__hint">{{rankHint}}</text>
+      <text class="section__hint" wx:if="{{rankHint}}">{{rankHint}}</text>
+      <text class="section__shuffle" wx:if="{{playersCount >= 2}}" bindtap="onShuffleTeams">随机分队</text>
     </view>
 
     <view class="team-row" wx:for="{{teamRows}}" wx:for-item="row" wx:key="key">
@@ -123,6 +124,7 @@
     <button class="btn btn--ghost nav__btn" hover-class="btn--pressed" bindtap="goHistory">对局历史</button>
     <button class="btn btn--ghost nav__btn" hover-class="btn--pressed" bindtap="goProfile">我的档案</button>
     <button wx:if="{{roomCode}}" class="btn btn--ghost nav__btn" hover-class="btn--pressed" bindtap="goRoom">进房间</button>
+    <button wx:else class="btn btn--ghost nav__btn" hover-class="btn--pressed" bindtap="onEnterRoomCode">围观别人</button>
   </view>
 
   <view class="bar-spacer"></view>

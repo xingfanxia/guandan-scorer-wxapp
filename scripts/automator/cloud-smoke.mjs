@@ -3,7 +3,7 @@
  * 云函数冒烟：room_create（顺带建 rooms 集合）→ room_write CAS 正常路 → 旧版本号写入必须冲突。
  * 在模拟器上下文经 wx.cloud 调用（走真实云环境）。
  */
-import automator from 'miniprogram-automator';
+import { launchOrConnect } from './launchOrConnect.mjs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { acquireDevtoolsLock, releaseDevtoolsLock } from './devtoolsLock.mjs';
@@ -14,11 +14,7 @@ const fail = (msg) => { throw new Error(`CLOUD SMOKE FAIL: ${msg}`); };
 acquireDevtoolsLock('guandan-scorer-wxapp:cloud-smoke');
 process.on('exit', releaseDevtoolsLock);
 
-const miniProgram = await automator.launch({
-  cliPath: '/Applications/wechatwebdevtools.app/Contents/MacOS/cli',
-  projectPath: ROOT,
-  port: 9421 // 与 dahua-dice-wxapp(9422) 分家，避免默认 9420 撞车
-});
+const miniProgram = await launchOrConnect(ROOT);
 
 try {
   await miniProgram.reLaunch('/pages/index/index');

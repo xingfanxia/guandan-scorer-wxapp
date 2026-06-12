@@ -104,6 +104,13 @@
   color: var(--text-secondary);
 }
 
+.section__shuffle {
+  font-size: var(--font-label);
+  color: var(--accent);
+  font-weight: 600;
+  padding: var(--s1) var(--s2);
+}
+
 .team-row {
   display: flex;
   align-items: flex-start;

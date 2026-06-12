@@ -120,6 +120,12 @@ export function createGameStore({ storage, now, onChange } = {}) {
     return resolveGameStatus(state.gameStatus, state.history).ended;
   }
 
+  /** 本场已开打（有历史）→ 名单/分队/人数冻结，换 = 开新一局（重置） */
+  function sessionLocked() {
+    return state.history.length > 0;
+  }
+  const LOCKED_MSG = '本场已开打 —— 改人数/名单/分队要先开新一局（重置）';
+
   /** 当前局面跑一次纯 A 级规则（零副作用，preview 与 apply 共用） */
   function runALevelRules(winnerKey, ranks, mode) {
     return checkALevelRules({
@@ -156,6 +162,9 @@ export function createGameStore({ storage, now, onChange } = {}) {
     setMode(mode) {
       const normalized = normalizePlayerCountMode(mode);
       if (!normalized) return { ok: false, msg: '模式只能是 4/6/8 人' };
+      if (sessionLocked() && String(normalized) !== state.mode) {
+        return { ok: false, msg: LOCKED_MSG };
+      }
       if (state.players.length > normalized) {
         return { ok: false, msg: `当前已有 ${state.players.length} 名玩家，先移除再切到 ${normalized} 人局` };
       }
@@ -180,7 +189,8 @@ export function createGameStore({ storage, now, onChange } = {}) {
       return { ok: true };
     },
 
-    addPlayer({ name, emoji, team }) {
+    addPlayer({ name, emoji, team, handle }) {
+      if (sessionLocked()) return { ok: false, msg: LOCKED_MSG };
       const cap = modeCount();
       if (state.players.length >= cap) {
         return { ok: false, msg: `人满了：${cap} 人局最多 ${cap} 名玩家` };
@@ -188,11 +198,24 @@ export function createGameStore({ storage, now, onChange } = {}) {
       const trimmed = String(name || '').trim();
       if (!trimmed) return { ok: false, msg: '玩家得有个名字' };
       if (team !== 1 && team !== 2) return { ok: false, msg: '先选好队伍' };
+      // 单队上限 = mode/2，否则 3v1 这类配队能录满名次却永远无法开打
+      const teamCap = cap / 2;
+      if (state.players.filter(p => p.team === team).length >= teamCap) {
+        return { ok: false, msg: `这队满了：每队最多 ${teamCap} 人` };
+      }
+      const normalizedHandle = typeof handle === 'string' && /^[a-z0-9_-]{2,32}$/.test(handle.toLowerCase())
+        ? handle.toLowerCase()
+        : null;
+      if (normalizedHandle && state.players.some(p => p.handle === normalizedHandle)) {
+        return { ok: false, msg: `@${normalizedHandle} 已经在场上了` };
+      }
       const player = {
         id: ++state.playerSeq,
         name: trimmed,
         emoji: emoji || '🙂',
-        team
+        team,
+        // 玩家池身份（可选）：handle 已绑微信时，战绩入库自动归属（见 profile_sync）
+        ...(normalizedHandle ? { handle: normalizedHandle } : {})
       };
       state.players.push(player);
       persist();
@@ -210,13 +233,43 @@ export function createGameStore({ storage, now, onChange } = {}) {
       if (patch.emoji !== undefined) player.emoji = patch.emoji;
       if (patch.team !== undefined) {
         if (patch.team !== 1 && patch.team !== 2) return { ok: false, msg: '队伍只能是 1/2' };
+        if (patch.team !== player.team && sessionLocked()) {
+          return { ok: false, msg: LOCKED_MSG };
+        }
+        if (patch.team !== player.team) {
+          const teamCap = modeCount() / 2;
+          if (state.players.filter(p => p.team === patch.team).length >= teamCap) {
+            return { ok: false, msg: `那队满了：每队最多 ${teamCap} 人` };
+          }
+        }
         player.team = patch.team;
       }
       persist();
       return { ok: true };
     },
 
+    /** 随机分队：现有玩家洗牌后前一半进蓝队、后一半进红队。rand 注入可测。 */
+    shuffleTeams(rand = Math.random) {
+      if (sessionLocked()) return { ok: false, msg: LOCKED_MSG };
+      const n = state.players.length;
+      if (n < 2) return { ok: false, msg: '至少要 2 名玩家才能分队' };
+      if (n % 2 !== 0) return { ok: false, msg: '人数得是偶数才能均分两队' };
+      const shuffled = [...state.players];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      const half = n / 2;
+      shuffled.forEach((p, idx) => {
+        p.team = idx < half ? 1 : 2;
+      });
+      state.players = shuffled;
+      persist();
+      return { ok: true };
+    },
+
     removePlayer(id) {
+      if (sessionLocked()) return { ok: false, msg: LOCKED_MSG };
       const before = state.players.length;
       state.players = state.players.filter(p => p.id !== id);
       if (state.players.length === before) return { ok: false, msg: '玩家不存在' };

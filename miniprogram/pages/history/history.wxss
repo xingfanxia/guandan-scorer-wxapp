@@ -1,5 +1,62 @@
 /* 对局历史 — 公共 .card/.row 在 app.wxss；此处只留页面专属 */
 
+.stats__title {
+  font-size: var(--font-title);
+  font-weight: 600;
+  margin-bottom: var(--s2);
+}
+
+.stats__head,
+.stats__row {
+  display: flex;
+  align-items: center;
+  min-height: 56rpx;
+}
+
+.stats__head {
+  color: var(--text-secondary);
+  font-size: var(--font-label);
+  border-bottom: 1rpx solid var(--hairline);
+}
+
+.stats__cell {
+  flex: 1;
+  text-align: center;
+  font-size: var(--font-body);
+}
+
+.stats__cell--name {
+  flex: 2;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stats__cell--t1 { color: var(--team-t1); }
+.stats__cell--t2 { color: var(--team-t2); }
+
+.stats__num {
+  font-feature-settings: "tnum";
+}
+
+.honor-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 64rpx;
+}
+
+.honor-line__title {
+  font-size: var(--font-body);
+  font-weight: 600;
+  color: var(--gold-a);
+}
+
+.honor-line__holder {
+  font-size: var(--font-body);
+}
+
 .card {
   padding: var(--s3) var(--s4);
   margin-bottom: var(--s2);

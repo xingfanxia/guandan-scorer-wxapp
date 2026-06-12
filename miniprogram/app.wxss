@@ -177,6 +177,14 @@ page {
   font-feature-settings: "tnum";
 }
 
+.row__ranks {
+  display: block;
+  margin-top: var(--s1);
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+  font-feature-settings: "tnum";
+}
+
 .row__note {
   display: block;
   margin-top: var(--s1);

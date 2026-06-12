@@ -2,8 +2,8 @@
 import { getStore } from '../../core/appStore.js';
 import { getOwnerSession } from '../../core/ownerRoom.js';
 import { buildBoardVM } from '../../core/viewModel.js';
-import { aggregateSession, computeSessionMvp, computeSessionHonors } from '../../core/victoryStats.js';
-import { deriveGameSessionKey, deriveVoteSessionKey } from '../../shared-logic/voteSessionKey.js';
+import { computeSessionMvp } from '../../core/victoryStats.js';
+import { buildProfileSessions } from '../../core/profileSession.js';
 import { drawPoster, POSTER_W, POSTER_H } from '../../core/poster.js';
 
 const EMOJI_POOL = ['🐶', '🐱', '🐭', '🐰', '🦊', '🐻', '🐼', '🐯'];
@@ -46,7 +46,9 @@ Page({
   order: [] as number[],
 
   onLoad() {
-    const theme = (wx.getSystemInfoSync().theme || 'light') as string;
+    // getSystemInfoSync 已废弃；getAppBaseInfo 基础库 2.20+，老库回退
+    const base = wx.getAppBaseInfo ? wx.getAppBaseInfo() : wx.getSystemInfoSync();
+    const theme = (base.theme || 'light') as string;
     this.setData({ accentColor: ACCENT_BY_THEME[theme] || ACCENT_BY_THEME.light });
     wx.onThemeChange?.((res) => {
       this.setData({ accentColor: ACCENT_BY_THEME[res.theme] || ACCENT_BY_THEME.light });
@@ -145,98 +147,45 @@ Page({
     });
   },
 
-  /** 房主结算入库：把认领过座位玩家的本场战绩+票数写进 players 集合（双幂等，可重复点） */
-  onSyncProfiles() {
+  /** 房主结算入库：服务端做白名单/key 派生/票数聚合，客户端只送本场聚合（双幂等，可重复点） */
+  async onSyncProfiles() {
     const code = getOwnerSession().getCode();
     const s = getStore().getState();
     if (!code || !s.gameStatus.ended) return;
 
     wx.showLoading({ title: '入库中…' });
-    const db = wx.cloud.database();
-    db.collection('rooms').doc(code).get().then(async (res: { data: Record<string, unknown> }) => {
-      const doc = res.data || {};
-      const claims = (doc.claims || {}) as Record<string, { openid: string; nickname: string; avatarUrl: string }>;
-      if (Object.keys(claims).length === 0) {
-        wx.hideLoading();
-        wx.showToast({ title: '还没人认领座位 —— 让牌友在房间页认领', icon: 'none' });
-        return;
-      }
-
-      const agg = aggregateSession(s);
-      const honors = computeSessionHonors(s);
-      const sessions = agg.players
-        .filter(p => claims[String(p.id)])
-        .map(p => ({
-          openid: claims[String(p.id)].openid,
-          displayName: claims[String(p.id)].nickname,
-          avatarUrl: claims[String(p.id)].avatarUrl || '',
-          mode: s.mode,
-          teamWon: p.teamWon,
-          gamesInSession: p.games,
-          avgRanking: p.avgRanking,
-          firstPlaces: p.firstPlaces,
-          lastPlaces: p.lastPlaces,
-          partnerOpenids: p.partnerIds.map((id: number) => claims[String(id)]?.openid).filter(Boolean),
-          opponentOpenids: p.opponentIds.map((id: number) => claims[String(id)]?.openid).filter(Boolean),
-          honorsEarned: (honors as Record<string, string[]>)[String(p.id)] || []
-        }));
-
-      const gameKey = deriveGameSessionKey({
-        roomCode: code,
-        gameStatus: s.gameStatus,
-        history: s.history,
-        finishedAt: null
-      });
-
-      // 票数（有就一起入库）
-      const voteEpoch = Number(doc.voteEpoch || 0);
-      const sessionKey = deriveVoteSessionKey({
-        roomCode: code,
-        gameStatus: s.gameStatus,
-        history: s.history,
-        finishedAt: null,
-        endGameVotesHistory: new Array(voteEpoch).fill(0)
-      });
-      let voteKey: string | null = null;
-      let voteTallies: Array<{ openid: string; mvp: number; burden: number }> = [];
-      if (sessionKey) {
-        const tallyRes = await wx.cloud.callFunction({
-          name: 'vote_tally',
-          data: { code, sessionKey }
-        }).catch(() => null);
-        const tally = (tallyRes?.result || {}) as {
-          ok?: boolean;
-          total?: number;
-          counts?: { mvp: Record<string, number>; burden: Record<string, number> };
-        };
-        if (tally.ok && tally.total && tally.counts) {
-          voteKey = sessionKey;
-          voteTallies = Object.entries(claims).map(([pid, c]) => ({
-            openid: c.openid,
-            mvp: tally.counts!.mvp[pid] || 0,
-            burden: tally.counts!.burden[pid] || 0
-          })).filter(t => t.mvp > 0 || t.burden > 0);
-        }
-      }
-
+    const sessions = buildProfileSessions(s); // openid 归属（认领 ∪ 玩家池绑定）由服务端解析
+    try {
       const syncRes = await wx.cloud.callFunction({
         name: 'profile_sync',
-        data: { code, gameKey, sessions, voteKey, voteTallies }
+        data: { code, sessions }
       });
       wx.hideLoading();
-      const r = (syncRes.result || {}) as { ok: boolean; applied?: number; skipped?: number };
+      const r = (syncRes.result || {}) as { ok: boolean; applied?: number; message?: string };
       if (r.ok) {
         wx.showToast({
           title: r.applied ? `已入库 ${sessions.length} 人战绩` : '本场已入过库（幂等跳过）',
           icon: 'none'
         });
       } else {
-        wx.showToast({ title: '入库失败，稍后再试', icon: 'none' });
+        wx.showToast({ title: r.message || '入库失败，稍后再试', icon: 'none' });
       }
-    }).catch(() => {
+    } catch {
       wx.hideLoading();
-      wx.showToast({ title: '读取房间失败', icon: 'none' });
-    });
+      wx.showToast({ title: '入库失败，检查网络', icon: 'none' });
+    }
+  },
+
+  /** 随机分队（开打后 store 层会拒绝） */
+  onShuffleTeams() {
+    const res = getStore().shuffleTeams();
+    if (!res.ok) {
+      wx.showToast({ title: res.msg || '分不了队', icon: 'none' });
+      return;
+    }
+    this.order = [];
+    this.refresh();
+    wx.showToast({ title: '已随机分队', icon: 'none' });
   },
 
   buildPreview(s: ReturnType<ReturnType<typeof getStore>['getState']>, modeNum: number) {
@@ -282,7 +231,33 @@ Page({
 
   onMode(e: WechatMiniprogram.TouchEvent) {
     const mode = e.currentTarget.dataset.mode as string;
-    const res = getStore().setMode(mode);
+    const store = getStore();
+    const s = store.getState();
+    if (s.mode === mode) return;
+
+    // 已开打：换人数 = 开新一局（重置比分；玩家超员时连名单一起清）
+    if (s.history.length > 0) {
+      wx.showModal({
+        title: `开新一局（${mode}人）？`,
+        content: '本场比分与历史将清零。',
+        confirmText: '开新一局',
+        success: (m) => {
+          if (!m.confirm) return;
+          store.resetGame(true);
+          let res = store.setMode(mode);
+          if (!res.ok) {
+            // 玩家数超过新模式上限 → 连玩家一起清
+            store.resetGame(false);
+            res = store.setMode(mode);
+          }
+          this.order = [];
+          this.refresh();
+        }
+      });
+      return;
+    }
+
+    const res = store.setMode(mode);
     if (!res.ok) {
       wx.showToast({ title: res.msg || '切换失败', icon: 'none' });
       return;
@@ -297,8 +272,64 @@ Page({
     this.refresh();
   },
 
-  onAddPlayer(e: WechatMiniprogram.TouchEvent) {
+  /** 加人：玩家池优先（web 迁移过来的牌友），手输兜底 */
+  async onAddPlayer(e: WechatMiniprogram.TouchEvent) {
     const team = Number(e.currentTarget.dataset.team) as 1 | 2;
+    const pool = await this.getPoolPlayers();
+    const taken = new Set(
+      getStore().getState().players.map((p: { handle?: string }) => p.handle).filter(Boolean)
+    );
+    const candidates = pool.filter(p => !taken.has(p.handle));
+    if (candidates.length === 0) {
+      this.promptManualAdd(team);
+      return;
+    }
+    this.showPoolSheet(team, candidates, 0);
+  },
+
+  poolCache: null as null | { at: number; players: Array<{ handle: string; displayName: string; emoji: string; sessionsPlayed: number }> },
+
+  async getPoolPlayers() {
+    if (this.poolCache && Date.now() - this.poolCache.at < 60000) return this.poolCache.players;
+    try {
+      const res = await wx.cloud.callFunction({ name: 'pool_list' });
+      const r = (res.result || {}) as { ok: boolean; players?: Array<{ handle: string; displayName: string; emoji: string; sessionsPlayed: number }> };
+      const players = (r.ok && r.players) || [];
+      this.poolCache = { at: Date.now(), players };
+      return players;
+    } catch {
+      return []; // 池子不可用 → 手输兜底
+    }
+  },
+
+  /** actionSheet 一页最多 6 项：5 个池玩家 + 翻页/手输 */
+  showPoolSheet(team: 1 | 2, candidates: Array<{ handle: string; displayName: string; emoji: string }>, page: number) {
+    const PAGE = 5;
+    const slice = candidates.slice(page * PAGE, page * PAGE + PAGE);
+    const hasMore = candidates.length > (page + 1) * PAGE;
+    const items = [
+      ...slice.map(p => `${p.emoji} ${p.displayName}（@${p.handle}）`),
+      ...(hasMore ? ['更多牌友…'] : []),
+      '手动输入'
+    ];
+    wx.showActionSheet({
+      itemList: items,
+      success: (res) => {
+        if (res.tapIndex < slice.length) {
+          const p = slice[res.tapIndex];
+          const add = getStore().addPlayer({ name: p.displayName, emoji: p.emoji, team, handle: p.handle });
+          if (!add.ok) wx.showToast({ title: add.msg || '加不进去', icon: 'none' });
+          this.refresh();
+        } else if (hasMore && res.tapIndex === slice.length) {
+          this.showPoolSheet(team, candidates, page + 1);
+        } else {
+          this.promptManualAdd(team);
+        }
+      }
+    });
+  },
+
+  promptManualAdd(team: 1 | 2) {
     wx.showModal({
       title: '加玩家',
       editable: true,
@@ -339,11 +370,13 @@ Page({
             }
           });
         } else if (res.tapIndex === 1) {
-          store.updatePlayer(id, { team: player.team === 1 ? 2 : 1 });
+          const r = store.updatePlayer(id, { team: player.team === 1 ? 2 : 1 });
+          if (!r.ok) wx.showToast({ title: r.msg || '换不了队', icon: 'none' });
           this.order = [];
           this.refresh();
         } else if (res.tapIndex === 2) {
-          store.removePlayer(id);
+          const r = store.removePlayer(id);
+          if (!r.ok) wx.showToast({ title: r.msg || '删不了', icon: 'none' });
           this.order = this.order.filter((x: number) => x !== id);
           this.refresh();
         }
@@ -391,6 +424,13 @@ Page({
       wx.showToast({ title: res.message || '已记一局', icon: 'none' });
     }
     this.refresh();
+
+    // 开打即建房（默认有房间，分享/围观随时可用）；失败静默——房间是增强不是前提
+    if (!getOwnerSession().getCode() && wx.cloud) {
+      getOwnerSession().create().then((r: { ok: boolean; code?: string }) => {
+        if (r.ok) this.setData({ roomCode: r.code });
+      }).catch(() => { /* 静默：无网/未部署时单机照常 */ });
+    }
   },
 
   /** 生成战绩海报并存相册（canvas 2d 纯文字构图，合规安全） */
@@ -407,7 +447,7 @@ Page({
           wx.showToast({ title: '画布初始化失败', icon: 'none' });
           return;
         }
-        const dpr = wx.getSystemInfoSync().pixelRatio || 2;
+        const dpr = (wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()).pixelRatio || 2;
         canvas.width = POSTER_W * dpr;
         canvas.height = POSTER_H * dpr;
         const ctx = canvas.getContext('2d');
@@ -449,6 +489,24 @@ Page({
   goRoom() {
     const code = getOwnerSession().getCode();
     if (code) wx.navigateTo({ url: `/pages/room/room?code=${code}` });
+  },
+
+  /** 手输房间码围观 —— 分享卡片不可用时（如未认证）的兜底入口 */
+  onEnterRoomCode() {
+    wx.showModal({
+      title: '围观房间',
+      editable: true,
+      placeholderText: '输入 6 位房间码，如 A2B3C4',
+      success: (res) => {
+        if (!res.confirm || !res.content) return;
+        const code = res.content.trim().toUpperCase();
+        if (!/^[A-Z][0-9A-Z]{5}$/.test(code)) {
+          wx.showToast({ title: '房间码是 6 位字母数字', icon: 'none' });
+          return;
+        }
+        wx.navigateTo({ url: `/pages/room/room?code=${code}` });
+      }
+    });
   },
 
   onAdvance() {

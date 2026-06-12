@@ -1,10 +1,11 @@
 // 对局历史：逐局升级记录 + 最新一局撤销（DESIGN.md：回滚入口只在最新一行）
 import { getStore } from '../../core/appStore.js';
-import { buildHistoryRows } from '../../core/viewModel.js';
+import { buildHistoryRows, buildSessionStatsVM } from '../../core/viewModel.js';
 
 Page({
   data: {
-    rows: [] as unknown[]
+    rows: [] as unknown[],
+    stats: null as unknown
   },
 
   onShow() {
@@ -13,7 +14,10 @@ Page({
 
   refresh() {
     const s = getStore().getState();
-    this.setData({ rows: buildHistoryRows(s.history) });
+    this.setData({
+      rows: buildHistoryRows(s.history),
+      stats: buildSessionStatsVM(s)
+    });
   },
 
   onUndoLatest() {

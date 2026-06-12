@@ -26,10 +26,19 @@ exports.main = async (event) => {
   if (!room || !room.data) return { ok: false, error: 'room_not_found' };
   const claims = room.data.claims || {};
 
+  // 座位必须是快照里的真实玩家 —— 防孤儿 claim 把用户锁死在不存在的座位上
+  const players = (room.data.snapshot && room.data.snapshot.players) || [];
+  if (!players.some(p => p && p.id === playerId)) {
+    return { ok: false, error: 'seat_not_found', message: '这个座位不存在（房主可能改过玩家名单）' };
+  }
+
   if (action === 'release') {
     const mine = claims[String(playerId)];
     if (!mine || mine.openid !== OPENID) return { ok: false, error: 'not_your_seat' };
-    await db.collection('rooms').doc(code).update({ data: { [field]: _.remove() } });
+    // version+1：让围观端的 watch/轮询版本去重通道放行这次 claims 变更
+    await db.collection('rooms').doc(code).update({
+      data: { [field]: _.remove(), version: _.inc(1), updatedAt: db.serverDate() }
+    });
     return { ok: true };
   }
 
@@ -54,7 +63,9 @@ exports.main = async (event) => {
             nickname,
             avatarUrl,
             claimedAt: db.serverDate()
-          }
+          },
+          version: _.inc(1), // 围观端版本去重通道放行
+          updatedAt: db.serverDate()
         }
       });
     if (res.stats.updated === 1) return { ok: true };

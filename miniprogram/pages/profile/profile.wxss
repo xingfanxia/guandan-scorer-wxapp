@@ -16,6 +16,21 @@
   gap: var(--s3);
 }
 
+.bind__hint {
+  display: block;
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+  margin-bottom: var(--s2);
+}
+
+.bind__btn {
+  margin-top: var(--s2);
+  width: 100%;
+  height: var(--touch-min);
+  line-height: var(--touch-min);
+  font-size: var(--font-body);
+}
+
 .who__avatar {
   width: 112rpx;
   height: 112rpx;

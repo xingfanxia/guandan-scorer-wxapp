@@ -83,6 +83,12 @@
   padding: 0;
 }
 
+.seat__btn--suggest {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+}
+
 .seat__release {
   position: absolute;
   inset: 0;
@@ -213,4 +219,71 @@
   font-size: var(--font-label);
   color: var(--text-secondary);
   text-align: center;
+}
+
+.vote__reset {
+  margin-top: var(--s2);
+  width: 100%;
+  height: var(--touch-min);
+  line-height: var(--touch-min);
+  font-size: var(--font-body);
+}
+
+/* ===== 本场统计 ===== */
+.stats__head,
+.stats__row {
+  display: flex;
+  align-items: center;
+  min-height: 56rpx;
+}
+
+.stats__head {
+  color: var(--text-secondary);
+  font-size: var(--font-label);
+  border-bottom: 1rpx solid var(--hairline);
+}
+
+.stats__cell {
+  flex: 1;
+  text-align: center;
+  font-size: var(--font-body);
+}
+
+.stats__cell--name {
+  flex: 2;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stats__cell--t1 { color: var(--team-t1); }
+.stats__cell--t2 { color: var(--team-t2); }
+
+.stats__num {
+  font-feature-settings: "tnum";
+}
+
+.stats__honors-title {
+  margin-top: var(--s3);
+  font-size: var(--font-label);
+  color: var(--gold-a);
+  letter-spacing: 2rpx;
+}
+
+.honor-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 64rpx;
+}
+
+.honor-line__title {
+  font-size: var(--font-body);
+  font-weight: 600;
+  color: var(--gold-a);
+}
+
+.honor-line__holder {
+  font-size: var(--font-body);
 }
