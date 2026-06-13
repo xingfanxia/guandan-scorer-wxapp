@@ -41,7 +41,15 @@ Page({
     preview: null as null | { upgradeText: string; detail: string },
     accentColor: ACCENT_BY_THEME.light,
     roomCode: '',
-    mvpText: ''
+    mvpText: '',
+    resetSheet: false, // 重置底部弹层显隐（页面内自定义，替代原生 actionSheet+modal）
+    // 加人底部弹层：一屏可滚动全员 + 多选一次加入（替代原生 actionSheet 分页翻页）
+    poolSheet: {
+      show: false,
+      team: 1 as 1 | 2,
+      rows: [] as Array<{ handle: string; displayName: string; emoji: string; sub: string; selected: boolean }>,
+      selectedCount: 0
+    }
   },
 
   /** 名次录入：玩家 id 按完成顺序排列（头游在前） */
@@ -280,43 +288,87 @@ Page({
   addingPlayer: false,
 
   /**
-   * 加人：玩家池优先（web 迁移来的牌友），手输兜底。
-   * 关键修复（2026-06-12 两轮反馈）：**全程不用 wx.showLoading/hideLoading** ——
-   * 原生 loading 与紧随的 showActionSheet 共用 UI 通道，hideLoading→showActionSheet
-   * 会被微信吞掉弹窗（真机 setTimeout 80ms 也不够）。改用页面内按钮 loading 态
-   *（data.addingTeam 驱动按钮显示「读取中…」），弹窗前没有任何原生 loading 操作，
-   * actionSheet 不会被吞。
+   * 加人：打开页面内自定义弹层（一屏可滚动全员 + 多选一次加入），**不用原生 actionSheet**。
+   * 原生 actionSheet itemList 上限 6 项 → 24 人池要反复翻「更多」，体验差且吞窗（用户反馈）。
+   * 自定义弹层一屏滚动看全部、勾多个一次加、池空/不可用也能手输。
    */
   async onAddPlayer(e: WechatMiniprogram.TouchEvent) {
-    if (this.addingPlayer) return; // 在途守卫：池子调用期间重复点会叠多个 actionSheet
+    if (this.addingPlayer) return;
     const team = Number(e.currentTarget.dataset.team) as 1 | 2;
-    const popFor = (candidates: Array<{ handle: string; displayName: string; emoji: string }>) => {
-      if (candidates.length === 0) this.promptManualAdd(team);
-      else this.showPoolSheet(team, candidates, 0);
+    const openSheet = (pool: Array<{ handle: string; displayName: string; emoji: string; sessionsPlayed: number }>) => {
+      const taken = new Set(
+        getStore().getState().players.map((p: { handle?: string }) => p.handle).filter(Boolean)
+      );
+      const rows = pool
+        .filter(p => !taken.has(p.handle))
+        .map(p => ({
+          handle: p.handle,
+          displayName: p.displayName,
+          emoji: p.emoji,
+          sub: p.sessionsPlayed ? `${p.sessionsPlayed} 场` : '新',
+          selected: false
+        }));
+      this.setData({ poolSheet: { show: true, team, rows, selectedCount: 0 } });
     };
-    const takenHandles = () => new Set(
-      getStore().getState().players.map((p: { handle?: string }) => p.handle).filter(Boolean)
-    );
 
-    // 缓存命中（60s 内）：同步取池、立即弹，无任何 loading
+    // 缓存命中（60s）：直接开弹层
     if (this.poolCache && Date.now() - this.poolCache.at < 60000) {
-      popFor(this.poolCache.players.filter(p => !takenHandles().has(p.handle)));
+      openSheet(this.poolCache.players);
       return;
     }
-
-    // 首次/缓存失效：页面内 loading 态（按钮变「读取中…」），不碰原生 wx.showLoading
+    // 首次/失效：页面内 loading 态（按钮「读取中…」），不碰原生 wx.showLoading
     this.addingPlayer = true;
     this.setData({ addingTeam: team });
-    let candidates: Array<{ handle: string; displayName: string; emoji: string }> = [];
+    let pool: Array<{ handle: string; displayName: string; emoji: string; sessionsPlayed: number }> = [];
     try {
-      const pool = await this.getPoolPlayers();
-      candidates = pool.filter(p => !takenHandles().has(p.handle));
+      pool = await this.getPoolPlayers();
     } finally {
       this.addingPlayer = false;
       this.setData({ addingTeam: 0 });
     }
-    // 此前无 wx.showLoading/hideLoading —— 直接弹，不会被吞
-    popFor(candidates);
+    openSheet(pool);
+  },
+
+  /** 弹层内勾选/取消一个池玩家 */
+  onPoolToggle(e: WechatMiniprogram.TouchEvent) {
+    const idx = Number(e.currentTarget.dataset.idx);
+    const rows = this.data.poolSheet.rows.slice();
+    if (!rows[idx]) return;
+    rows[idx] = { ...rows[idx], selected: !rows[idx].selected };
+    this.setData({
+      'poolSheet.rows': rows,
+      'poolSheet.selectedCount': rows.filter(r => r.selected).length
+    });
+  },
+
+  /** 一次加入所有勾选的池玩家 */
+  onPoolConfirm() {
+    const { team, rows } = this.data.poolSheet;
+    const store = getStore();
+    let added = 0;
+    let failMsg = '';
+    for (const r of rows) {
+      if (!r.selected) continue;
+      const res = store.addPlayer({ name: r.displayName, emoji: r.emoji, team, handle: r.handle });
+      if (res.ok) added += 1; else failMsg = res.msg || '加不下了';
+    }
+    this.setData({ poolSheet: { show: false, team, rows: [], selectedCount: 0 } });
+    this.refresh();
+    if (failMsg) wx.showToast({ title: failMsg, icon: 'none' });
+    else if (added) wx.showToast({ title: `加了 ${added} 人`, icon: 'none' });
+  },
+
+  onPoolClose() {
+    this.setData({ 'poolSheet.show': false });
+  },
+
+  noop() { /* 吸收弹层内部点击，阻止冒泡到 mask（catchtap 占位） */ },
+
+  /** 弹层「手动输入」：关弹层后隔宏任务弹单个 editable modal（避免 setData→modal 衔接吞窗） */
+  onPoolManual() {
+    const team = this.data.poolSheet.team;
+    this.setData({ 'poolSheet.show': false });
+    setTimeout(() => this.promptManualAdd(team), 60);
   },
 
   poolCache: null as null | { at: number; players: Array<{ handle: string; displayName: string; emoji: string; sessionsPlayed: number }> },
@@ -654,30 +706,24 @@ Page({
     });
   },
 
+  /**
+   * 重置：页面内自定义底部弹层（WXML 渲染），**不用原生 actionSheet/modal**。
+   * 原生连续弹窗（actionSheet→modal）在模拟器/真机反复吞窗、不可靠（用户三次「没反应」），
+   * 自定义弹层选择+确认合一、一定可见、automator 可 tap 可截图。
+   */
   onReset() {
-    wx.showActionSheet({
-      itemList: ['重新开一局（保留玩家）', '清空玩家重来'],
-      success: (sheet) => {
-        const preserve = sheet.tapIndex === 0;
-        // actionSheet success → showModal 同步相邻会被微信吞掉确认框（选完「没反应」）—— 隔一个宏任务
-        setTimeout(() => {
-          wx.showModal({
-            title: preserve ? '重新开一局？' : '清空玩家重来？',
-            content: (preserve
-              ? '本场比分与历史清零、玩家保留，继续打下一场。'
-              : '本场比分、历史、玩家全部清空。')
-              + '围观房间不变，牌友继续看新一场。',
-            success: (res) => {
-              if (!res.confirm) return;
-              // 重置 = 同一桌继续打，**保留房间**（围观者不掉线）；换桌请用「换人数」开新房间
-              getStore().resetGame(preserve);
-              this.order = [];
-              this.refresh();
-            }
-          });
-        }, 60);
-      },
-      fail: () => { /* 用户取消，无操作 */ }
-    });
+    this.setData({ resetSheet: true });
+  },
+
+  onResetPick(e: WechatMiniprogram.TouchEvent) {
+    const mode = String(e.currentTarget.dataset.mode || 'cancel');
+    this.setData({ resetSheet: false });
+    if (mode === 'cancel') return;
+    const preserve = mode === 'keep';
+    // 重置 = 同一桌继续打，**保留房间**（围观者不掉线）；换桌请用「换人数」开新房间
+    getStore().resetGame(preserve);
+    this.order = [];
+    this.refresh();
+    wx.showToast({ title: preserve ? '已重新开局（保留玩家）' : '已清空，重新加人', icon: 'none' });
   }
 });
