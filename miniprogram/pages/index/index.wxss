@@ -432,3 +432,33 @@
   color: var(--text-secondary);
   border-top: 1rpx solid var(--hairline);
 }
+
+/* 选人弹层去向切换段 */
+.sheet__seg {
+  display: flex;
+  gap: var(--s1);
+  background: var(--surface-2);
+  border-radius: var(--radius-control);
+  padding: 4rpx;
+  margin-bottom: var(--s2);
+}
+
+.sheet__seg-item {
+  flex: 1;
+  text-align: center;
+  height: 64rpx;
+  line-height: 64rpx;
+  border-radius: 10rpx;
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+}
+
+.sheet__seg-item--on {
+  background: var(--surface);
+  color: var(--text-primary);
+  font-weight: 600;
+  border: 1rpx solid var(--hairline);
+}
+
+.sheet__seg-item--t1.sheet__seg-item--on { color: var(--team-t1); }
+.sheet__seg-item--t2.sheet__seg-item--on { color: var(--team-t2); }

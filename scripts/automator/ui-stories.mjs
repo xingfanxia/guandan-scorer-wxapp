@@ -76,30 +76,47 @@ try {
   await mp.evaluate(() => { const p = getCurrentPages()[getCurrentPages().length - 1]; return p.getPoolPlayers && p.getPoolPlayers(); });
   await page.waitFor(1500);
 
-  console.log('\n■ Story 1：加人 — 自定义弹层多选一次加入（一屏滚动，无翻页）');
+  console.log('\n■ Story 1：加人 — 默认「随机分队」模式，多选一次加入自动平衡两队');
   {
-    // 缓存命中 → onAddPlayer 同步开弹层；勾两个 + 确认
     const out = await mp.evaluate(() => {
-      const app = getApp();
-      const store = app.store; store.resetGame(false); store.setMode('6');
+      const store = getApp().store; store.resetGame(false); store.setMode('8');
       const page = getCurrentPages()[getCurrentPages().length - 1];
       page.onAddPlayer({ currentTarget: { dataset: { team: 1 } } });
       const sheet = page.data.poolSheet;
       const rowCount = sheet.rows.length;
       const shown = sheet.show;
+      const defaultTarget = sheet.target; // 默认应为 0（随机分队）
       const subs = sheet.rows.slice(0, 4).map(r => Number((r.sub || '0').replace(/[^0-9]/g, '')) || 0);
-      page.onPoolToggle({ currentTarget: { dataset: { idx: 0 } } });
-      page.onPoolToggle({ currentTarget: { dataset: { idx: 1 } } });
+      for (let i = 0; i < 4; i++) page.onPoolToggle({ currentTarget: { dataset: { idx: i } } });
       const selBefore = page.data.poolSheet.selectedCount;
       page.onPoolConfirm();
       const s = store.getState();
-      return { shown, rowCount, subs, selBefore, closed: page.data.poolSheet.show, players: s.players.length, teams: s.players.map(p => p.team) };
+      return { shown, rowCount, defaultTarget, subs, selBefore, closed: page.data.poolSheet.show, players: s.players.length, t1: s.players.filter(p => p.team === 1).length, t2: s.players.filter(p => p.team === 2).length };
     });
     ok(out.shown && out.rowCount >= 10, `弹层一屏列出全员（${out.rowCount} 行，无翻页）`);
+    ok(out.defaultTarget === 0, '默认「随机分队」模式（target=0）');
     ok(out.subs.every((n, i) => i === 0 || out.subs[i - 1] >= n), `默认按最活跃倒序（前几位场次 ${JSON.stringify(out.subs)}）`);
-    ok(out.selBefore === 2, `多选计数正确（选了 ${out.selBefore} 人）`);
-    ok(out.players === 2 && out.teams.every(t => t === 1), '一次加入 2 人到 t1');
+    ok(out.selBefore === 4, `多选计数正确（选了 ${out.selBefore} 人）`);
+    ok(out.players === 4 && out.t1 === 2 && out.t2 === 2, `随机平衡分两队（蓝 ${out.t1} / 红 ${out.t2}）`);
     ok(out.closed === false, '加入后弹层关闭');
+  }
+
+  console.log('\n■ Story 1b：加人 — 切「手动分队·蓝队」，选中的人全进蓝队');
+  {
+    const out = await mp.evaluate(() => {
+      const store = getApp().store; store.resetGame(false); store.setMode('8');
+      const page = getCurrentPages()[getCurrentPages().length - 1];
+      page.onAddPlayer({ currentTarget: { dataset: { team: 1 } } });
+      page.onPoolTarget({ currentTarget: { dataset: { target: '1' } } }); // 切蓝队（手动）
+      const tgt = page.data.poolSheet.target;
+      page.onPoolToggle({ currentTarget: { dataset: { idx: 0 } } });
+      page.onPoolToggle({ currentTarget: { dataset: { idx: 1 } } });
+      page.onPoolConfirm();
+      const s = store.getState();
+      return { tgt, players: s.players.length, teams: s.players.map(p => p.team) };
+    });
+    ok(out.tgt === 1, '去向切到「蓝队」（target=1）');
+    ok(out.players === 2 && out.teams.every(t => t === 1), '手动分队：2 人全进蓝队');
   }
 
   console.log('\n■ Story 2：加人 — 弹层「手动输入」入口（关弹层→隔宏任务 modal）');
@@ -109,11 +126,12 @@ try {
       const store = app.store; store.resetGame(false); store.setMode('6');
       const page = getCurrentPages()[getCurrentPages().length - 1];
       page.onAddPlayer({ currentTarget: { dataset: { team: 2 } } });
+      page.onPoolTarget({ currentTarget: { dataset: { target: '2' } } }); // 手动·红队，手输落红队
       page.onPoolManual(); // 关弹层 + setTimeout(60) 弹手输 modal
       setTimeout(() => { app.__done = true; }, 500);
     });
     ok(r.log.some(l => l.startsWith('M:加玩家')), '走到手输 modal');
-    ok(r.players.some(p => p.name === '临时工老陈' && p.team === 2), '手输玩家入队 t2');
+    ok(r.players.some(p => p.name === '临时工老陈' && p.team === 2), '手输玩家入队 t2（去向=红队）');
   }
 
   console.log('\n■ Story 3：长按玩家 — 改名（actionSheet→modal）');

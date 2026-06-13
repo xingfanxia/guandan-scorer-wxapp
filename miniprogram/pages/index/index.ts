@@ -46,7 +46,7 @@ Page({
     // 加人底部弹层：一屏可滚动全员 + 多选一次加入（替代原生 actionSheet 分页翻页）
     poolSheet: {
       show: false,
-      team: 1 as 1 | 2,
+      target: 0 as 0 | 1 | 2, // 去向：0=随机分队、1=蓝队、2=红队
       rows: [] as Array<{ handle: string; displayName: string; emoji: string; sub: string; selected: boolean }>,
       selectedCount: 0
     }
@@ -316,7 +316,9 @@ Page({
             selected: false
           };
         });
-      this.setData({ poolSheet: { show: true, team, rows, selectedCount: 0 } });
+      // 默认「随机分队」模式（选完一次随机平衡分两队）；想手动指定队再切蓝/红
+      void team; // team 仅用于手输兜底时的落队（onPoolManual），加人去向以 target 为准
+      this.setData({ poolSheet: { show: true, target: 0, rows, selectedCount: 0 } });
     };
 
     // 缓存命中（60s）：直接开弹层
@@ -349,18 +351,41 @@ Page({
     });
   },
 
-  /** 一次加入所有勾选的池玩家 */
+  /** 弹层去向切换：随机分队 / 蓝队 / 红队 */
+  onPoolTarget(e: WechatMiniprogram.TouchEvent) {
+    this.setData({ 'poolSheet.target': Number(e.currentTarget.dataset.target) as 0 | 1 | 2 });
+  },
+
+  /** 一次加入所有勾选的池玩家；target=0 随机平衡分到两队 */
   onPoolConfirm() {
-    const { team, rows } = this.data.poolSheet;
+    const { target, rows } = this.data.poolSheet;
     const store = getStore();
+    let selected = rows.filter(r => r.selected);
+    if (target === 0) {
+      // 随机分队：打散后依次填入当前人少的队（平衡），开打前还能再点「随机分队」重洗
+      const arr = selected.slice();
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      selected = arr;
+    }
     let added = 0;
     let failMsg = '';
-    for (const r of rows) {
-      if (!r.selected) continue;
+    for (const r of selected) {
+      let team: 1 | 2;
+      if (target === 0) {
+        const s = store.getState();
+        const t1n = s.players.filter((p: { team: number }) => p.team === 1).length;
+        const t2n = s.players.filter((p: { team: number }) => p.team === 2).length;
+        team = t1n <= t2n ? 1 : 2;
+      } else {
+        team = target;
+      }
       const res = store.addPlayer({ name: r.displayName, emoji: r.emoji, team, handle: r.handle });
       if (res.ok) added += 1; else failMsg = res.msg || '加不下了';
     }
-    this.setData({ poolSheet: { show: false, team, rows: [], selectedCount: 0 } });
+    this.setData({ poolSheet: { show: false, target, rows: [], selectedCount: 0 } });
     this.refresh();
     if (failMsg) wx.showToast({ title: failMsg, icon: 'none' });
     else if (added) wx.showToast({ title: `加了 ${added} 人`, icon: 'none' });
@@ -374,7 +399,16 @@ Page({
 
   /** 弹层「手动输入」：关弹层后隔宏任务弹单个 editable modal（避免 setData→modal 衔接吞窗） */
   onPoolManual() {
-    const team = this.data.poolSheet.team;
+    const { target } = this.data.poolSheet;
+    let team: 1 | 2;
+    if (target === 0) {
+      const s = getStore().getState();
+      const t1n = s.players.filter((p: { team: number }) => p.team === 1).length;
+      const t2n = s.players.filter((p: { team: number }) => p.team === 2).length;
+      team = t1n <= t2n ? 1 : 2;
+    } else {
+      team = target;
+    }
     this.setData({ 'poolSheet.show': false });
     setTimeout(() => this.promptManualAdd(team), 60);
   },
