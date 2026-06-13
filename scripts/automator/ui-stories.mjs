@@ -90,15 +90,18 @@ try {
     ok(Boolean(r.players[0].handle), `带 handle（@${r.players[0].handle}）`);
   }
 
-  console.log('\n■ Story 2：加人 — 手动输入（actionSheet 末项→modal 录入）');
+  console.log('\n■ Story 2：加人 — 手输 + itemList ≤6 项硬约束（PAGE=4：第一页手输 index=5）');
   {
     const r = await pollAfter(() => {
-      const app = getApp(); app.__done = false; app.__queue = [{ tap: 6 }, { modal: { confirm: true, content: '临时工老陈' } }]; app.__log = [];
+      const app = getApp(); app.__done = false; app.__queue = [{ tap: 5 }, { modal: { confirm: true, content: '临时工老陈' } }]; app.__log = [];
       const store = app.store; store.resetGame(false); store.setMode('6');
       const page = getCurrentPages()[getCurrentPages().length - 1];
       Promise.resolve(page.onAddPlayer({ currentTarget: { dataset: { team: 2 } } }))
         .then(() => setTimeout(() => { app.__done = true; }, 450));
     });
+    const asLine = r.log.find(l => l.startsWith('AS:['));
+    const itemCount = asLine ? asLine.replace('AS:[', '').replace(/\]$/, '').split('|').length : 0;
+    ok(itemCount > 0 && itemCount <= 6, `actionSheet itemList ≤6 项（微信硬上限，实际 ${itemCount} 项）`);
     ok(r.log.some(l => l.startsWith('M:加玩家')), '走到手输 modal');
     ok(r.players.some(p => p.name === '临时工老陈' && p.team === 2), '手输玩家入队 t2');
   }

@@ -36,6 +36,7 @@ Page({
     prefs: { strictA: true, must1: true, autoNext: true },
     teamRows: [] as Array<{ key: string; team: number; players: ChipVM[] }>,
     playersCount: 0,
+    addingTeam: 0 as 0 | 1 | 2, // 加人云调用进行中的队（页面内 loading 态，替代原生 wx.showLoading）
     rankHint: '',
     preview: null as null | { upgradeText: string; detail: string },
     accentColor: ACCENT_BY_THEME.light,
@@ -278,33 +279,44 @@ Page({
 
   addingPlayer: false,
 
-  /** 加人：玩家池优先（web 迁移过来的牌友），手输兜底 */
+  /**
+   * 加人：玩家池优先（web 迁移来的牌友），手输兜底。
+   * 关键修复（2026-06-12 两轮反馈）：**全程不用 wx.showLoading/hideLoading** ——
+   * 原生 loading 与紧随的 showActionSheet 共用 UI 通道，hideLoading→showActionSheet
+   * 会被微信吞掉弹窗（真机 setTimeout 80ms 也不够）。改用页面内按钮 loading 态
+   *（data.addingTeam 驱动按钮显示「读取中…」），弹窗前没有任何原生 loading 操作，
+   * actionSheet 不会被吞。
+   */
   async onAddPlayer(e: WechatMiniprogram.TouchEvent) {
     if (this.addingPlayer) return; // 在途守卫：池子调用期间重复点会叠多个 actionSheet
     const team = Number(e.currentTarget.dataset.team) as 1 | 2;
-    this.addingPlayer = true;
-    // 缓存命中（60s 内）直接弹，不显 loading —— 避免 hideLoading→showActionSheet 的吞窗
-    const cached = Boolean(this.poolCache && Date.now() - this.poolCache.at < 60000);
-    if (!cached) wx.showLoading({ title: '读取牌友…', mask: true });
-    let candidates: Array<{ handle: string; displayName: string; emoji: string }> = [];
-    try {
-      const pool = await this.getPoolPlayers();
-      const taken = new Set(
-        getStore().getState().players.map((p: { handle?: string }) => p.handle).filter(Boolean)
-      );
-      candidates = pool.filter(p => !taken.has(p.handle));
-    } finally {
-      if (!cached) wx.hideLoading();
-      this.addingPlayer = false;
-    }
-    // 关键：wx.hideLoading() 与 wx.showActionSheet()/showModal() 同步相邻时，微信会把弹窗吞掉
-    //（原生 UI 通道冲突，2026-06-12 DevTool 实测 + 社区已知）—— 隔一个宏任务等 loading 收完再弹
-    const pop = () => {
+    const popFor = (candidates: Array<{ handle: string; displayName: string; emoji: string }>) => {
       if (candidates.length === 0) this.promptManualAdd(team);
       else this.showPoolSheet(team, candidates, 0);
     };
-    if (cached) pop();
-    else setTimeout(pop, 80);
+    const takenHandles = () => new Set(
+      getStore().getState().players.map((p: { handle?: string }) => p.handle).filter(Boolean)
+    );
+
+    // 缓存命中（60s 内）：同步取池、立即弹，无任何 loading
+    if (this.poolCache && Date.now() - this.poolCache.at < 60000) {
+      popFor(this.poolCache.players.filter(p => !takenHandles().has(p.handle)));
+      return;
+    }
+
+    // 首次/缓存失效：页面内 loading 态（按钮变「读取中…」），不碰原生 wx.showLoading
+    this.addingPlayer = true;
+    this.setData({ addingTeam: team });
+    let candidates: Array<{ handle: string; displayName: string; emoji: string }> = [];
+    try {
+      const pool = await this.getPoolPlayers();
+      candidates = pool.filter(p => !takenHandles().has(p.handle));
+    } finally {
+      this.addingPlayer = false;
+      this.setData({ addingTeam: 0 });
+    }
+    // 此前无 wx.showLoading/hideLoading —— 直接弹，不会被吞
+    popFor(candidates);
   },
 
   poolCache: null as null | { at: number; players: Array<{ handle: string; displayName: string; emoji: string; sessionsPlayed: number }> },
@@ -326,9 +338,13 @@ Page({
     }
   },
 
-  /** actionSheet 一页最多 6 项：5 个池玩家 + 翻页/手输 */
+  /**
+   * 选人 actionSheet。微信 itemList **硬上限 6 项** —— 之前一页 5 池+更多+手输=7 项
+   * 超限直接 fail，actionSheet 根本不弹（用户实测「没反应」的真因）。每页 4 池玩家：
+   * hasMore 时 4+更多+手输=6；末页 ≤4+手输≤5，恒 ≤6。
+   */
   showPoolSheet(team: 1 | 2, candidates: Array<{ handle: string; displayName: string; emoji: string }>, page: number) {
-    const PAGE = 5;
+    const PAGE = 4;
     const slice = candidates.slice(page * PAGE, page * PAGE + PAGE);
     const hasMore = candidates.length > (page + 1) * PAGE;
     const items = [
@@ -349,6 +365,10 @@ Page({
         } else {
           this.promptManualAdd(team);
         }
+      },
+      fail: (err) => {
+        // 用户取消(cancel)静默；其余失败（如 itemList 超限）降级手输，绝不静默「没反应」
+        if (!String(err.errMsg || '').includes('cancel')) this.promptManualAdd(team);
       }
     });
   },
