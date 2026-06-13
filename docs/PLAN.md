@@ -129,7 +129,7 @@ pool 集合（pool_import 从 gd.ax0x.ai 拉全部玩家，云函数出站不受
 7. 幂等跟 gameKey 同一道闸（applySession 去重时一并应用/跳过）；rating 下限 0。
 8. **起评分**（无小程序战绩时从 web 历史折算，同口径名次为主）：1000 + 置信度×(250×(4.5−场均名次)/3.5 + 300×(胜率−0.5))，钳 [700,1300]，置信度 = min(场次,20)/20；只在 sessions=0 时垫底，永不覆盖已挣分。天梯榜 `*` 标记 = 该分仍是起评分（`ladder.sessions===0`，未在小程序实结），**与是否校准独立**。
 8b. **校准门（2026-06-13 用户反馈改）**：天梯榜「待校准」沉底门按 **历史总场次（web + 小程序合计）< 3** 判定，**不是**只数小程序天梯局 —— web 迁移来的老牌友凭历史直接进正式榜（旧实现只数 `ladder.sessions` 致 18 场老将也显示「还差 3 场」）。仅 pool_list 一处（纯展示/排序，web 无此概念）。
-9. 纯函数 `core/ladder.js`（Node 可测）；seedLadderRating 在 **4 个云函数 CJS 镜像**同算法：profile_sync / pool_bind / pool_list / profile_get_by_handle（computeLadderDeltas/applyLadderDelta 只在 profile_sync 镜像）；评分读写全在服务端。
+9. 纯函数算法（Node 可测）；评分读写全在服务端：profile_sync 用 computeLadderDeltas/applyLadderDelta/seedLadderRating，pool_bind/pool_list/profile_get_by_handle 用 seedLadderRating。**去重收口（2026-06-13）**：原 `core/ladder.js` + 4 个手写 CJS 镜像已塌缩为单一事实源 `shared/ladderLogic.js`（web canonical，upstream `b5c6a66`）—— vendor 成 ESM 进 `miniprogram/shared-logic/` + 经 esmToCjs vendor 成 CJS 进 4 个云函数目录，各 `require('./ladderLogic.js')`。改算法只改 web repo + `sync:shared`，改完重部署 4 云函数。
 → verify: 纯函数测试覆盖 强胜弱少加分/爆冷多得/输局高光小加分/胜方保底/个人表现拉开同队差距/起评分折算；档案页 + 查询 view 展示天梯分。
 
 ### 下一 session 工作清单（2026-06-12 晚已全部完成）
