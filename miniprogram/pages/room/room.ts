@@ -3,6 +3,7 @@ import { watchRoom } from '../../core/roomSync.js';
 import { buildBoardVM, buildHistoryRows, buildSessionStatsVM } from '../../core/viewModel.js';
 import { computeSessionMvp } from '../../core/victoryStats.js';
 import { deriveVoteSessionKey } from '../../shared-logic/voteSessionKey.js';
+import { applyTheme } from '../../core/theme.js';
 
 interface SeatVM {
   id: number;
@@ -89,6 +90,7 @@ Page({
   },
 
   onShow() {
+    applyTheme(this);
     // 后台切回/页面栈返回时主动重同步（watch 可能在后台静默死亡）
     if (this.watcher) this.watcher.refresh();
   },

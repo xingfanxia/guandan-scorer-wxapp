@@ -1,4 +1,4 @@
-<view class="page">
+<view class="page {{themeClass}}">
 
   <view class="card empty" wx:if="{{loading}}">读取玩家池…</view>
   <view class="card empty" wx:if="{{!loading && rows.length === 0}}">

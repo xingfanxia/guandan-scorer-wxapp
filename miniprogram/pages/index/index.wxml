@@ -1,4 +1,4 @@
-<view class="page index">
+<view class="page index {{themeClass}}">
 
   <!-- 级牌记分牌（签名元素，DESIGN.md §5） -->
   <view class="card board">
@@ -72,6 +72,14 @@
     <view class="pref">
       <text class="pref__label">记分后自动进下一局</text>
       <switch checked="{{prefs.autoNext}}" color="{{accentColor}}" data-key="autoNext" bindchange="onPref" />
+    </view>
+    <view class="pref pref--stack">
+      <text class="pref__label">深色外观</text>
+      <view class="seg seg--theme">
+        <view class="seg__item {{themePref === 'auto' ? 'seg__item--active' : ''}}" data-pref="auto" bindtap="onThemePick">跟随系统</view>
+        <view class="seg__item {{themePref === 'light' ? 'seg__item--active' : ''}}" data-pref="light" bindtap="onThemePick">浅色</view>
+        <view class="seg__item {{themePref === 'dark' ? 'seg__item--active' : ''}}" data-pref="dark" bindtap="onThemePick">深色</view>
+      </view>
     </view>
   </view>
 

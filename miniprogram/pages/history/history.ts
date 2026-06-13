@@ -1,6 +1,7 @@
 // 对局历史：逐局升级记录 + 最新一局撤销（DESIGN.md：回滚入口只在最新一行）
 import { getStore } from '../../core/appStore.js';
 import { buildHistoryRows, buildSessionStatsVM } from '../../core/viewModel.js';
+import { applyTheme } from '../../core/theme.js';
 
 Page({
   data: {
@@ -9,6 +10,7 @@ Page({
   },
 
   onShow() {
+    applyTheme(this);
     this.refresh();
   },
 

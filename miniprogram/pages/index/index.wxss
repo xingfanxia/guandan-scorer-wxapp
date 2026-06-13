@@ -65,6 +65,17 @@
   font-size: var(--font-body);
 }
 
+/* 外观开关行：标签在上、整宽 seg 在下（区别于 .pref 的左右布局；复用 .seg 段控件） */
+.pref--stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s2);
+}
+
+.seg--theme .seg__item {
+  font-size: var(--font-label);
+}
+
 /* ===== 围观分享 ===== */
 .share {
   display: flex;

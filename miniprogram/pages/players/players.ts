@@ -1,6 +1,7 @@
 // 玩家天梯/查询页：池内全员列表（天梯榜序）→ 点开看任意玩家档案（web players.html 对位）
 import { buildProfileVM } from '../../core/profileVM.js';
 import { ACHIEVEMENT_COUNT } from '../../shared-logic/achievementLogic.js';
+import { applyTheme } from '../../core/theme.js';
 
 interface PoolRow {
   handle: string;
@@ -47,6 +48,7 @@ Page({
   },
 
   onShow() {
+    applyTheme(this);
     this.fetchList();
   },
 

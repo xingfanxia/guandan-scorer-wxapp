@@ -8,6 +8,11 @@ page {
 }
 
 .page {
+  /* 铺满视口并自绘主题底色：手动外观覆盖时（.page 带 theme-- 类重定义 --bg）盖住
+     身后系统主题的 page{} 元素，避免边缘/回弹露出系统色 */
+  min-height: 100vh;
+  box-sizing: border-box;
+  background: var(--bg);
   padding: var(--gutter);
 }
 
