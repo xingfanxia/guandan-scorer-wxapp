@@ -295,19 +295,27 @@ Page({
   async onAddPlayer(e: WechatMiniprogram.TouchEvent) {
     if (this.addingPlayer) return;
     const team = Number(e.currentTarget.dataset.team) as 1 | 2;
-    const openSheet = (pool: Array<{ handle: string; displayName: string; emoji: string; sessionsPlayed: number }>) => {
+    const openSheet = (pool: Array<{ handle: string; displayName: string; emoji: string; sessionsPlayed: number; totalSessions?: number }>) => {
       const taken = new Set(
         getStore().getState().players.map((p: { handle?: string }) => p.handle).filter(Boolean)
       );
+      // 活跃度 = 总出场次数（绑定后含小程序场，否则 web 场次）
+      const activeOf = (p: { totalSessions?: number; sessionsPlayed?: number }) =>
+        Number(p.totalSessions ?? p.sessionsPlayed) || 0;
       const rows = pool
         .filter(p => !taken.has(p.handle))
-        .map(p => ({
-          handle: p.handle,
-          displayName: p.displayName,
-          emoji: p.emoji,
-          sub: p.sessionsPlayed ? `${p.sessionsPlayed} 场` : '新',
-          selected: false
-        }));
+        .slice()
+        .sort((a, b) => activeOf(b) - activeOf(a)) // 默认按最活跃玩家倒序
+        .map(p => {
+          const n = activeOf(p);
+          return {
+            handle: p.handle,
+            displayName: p.displayName,
+            emoji: p.emoji,
+            sub: n ? `${n} 场` : '新',
+            selected: false
+          };
+        });
       this.setData({ poolSheet: { show: true, team, rows, selectedCount: 0 } });
     };
 
@@ -319,7 +327,7 @@ Page({
     // 首次/失效：页面内 loading 态（按钮「读取中…」），不碰原生 wx.showLoading
     this.addingPlayer = true;
     this.setData({ addingTeam: team });
-    let pool: Array<{ handle: string; displayName: string; emoji: string; sessionsPlayed: number }> = [];
+    let pool: Array<{ handle: string; displayName: string; emoji: string; sessionsPlayed: number; totalSessions?: number }> = [];
     try {
       pool = await this.getPoolPlayers();
     } finally {
@@ -371,7 +379,7 @@ Page({
     setTimeout(() => this.promptManualAdd(team), 60);
   },
 
-  poolCache: null as null | { at: number; players: Array<{ handle: string; displayName: string; emoji: string; sessionsPlayed: number }> },
+  poolCache: null as null | { at: number; players: Array<{ handle: string; displayName: string; emoji: string; sessionsPlayed: number; totalSessions?: number }> },
 
   async getPoolPlayers() {
     if (this.poolCache && Date.now() - this.poolCache.at < 60000) return this.poolCache.players;
@@ -381,7 +389,7 @@ Page({
         wx.cloud.callFunction({ name: 'pool_list' }),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('pool_list timeout')), 3500))
       ]);
-      const r = ((res as { result?: unknown }).result || {}) as { ok: boolean; players?: Array<{ handle: string; displayName: string; emoji: string; sessionsPlayed: number }> };
+      const r = ((res as { result?: unknown }).result || {}) as { ok: boolean; players?: Array<{ handle: string; displayName: string; emoji: string; sessionsPlayed: number; totalSessions?: number }> };
       const players = (r.ok && r.players) || [];
       this.poolCache = { at: Date.now(), players };
       return players;
