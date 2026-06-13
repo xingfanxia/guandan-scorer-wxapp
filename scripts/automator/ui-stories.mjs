@@ -87,14 +87,16 @@ try {
       const sheet = page.data.poolSheet;
       const rowCount = sheet.rows.length;
       const shown = sheet.show;
+      const subs = sheet.rows.slice(0, 4).map(r => Number((r.sub || '0').replace(/[^0-9]/g, '')) || 0);
       page.onPoolToggle({ currentTarget: { dataset: { idx: 0 } } });
       page.onPoolToggle({ currentTarget: { dataset: { idx: 1 } } });
       const selBefore = page.data.poolSheet.selectedCount;
       page.onPoolConfirm();
       const s = store.getState();
-      return { shown, rowCount, selBefore, closed: page.data.poolSheet.show, players: s.players.length, teams: s.players.map(p => p.team) };
+      return { shown, rowCount, subs, selBefore, closed: page.data.poolSheet.show, players: s.players.length, teams: s.players.map(p => p.team) };
     });
     ok(out.shown && out.rowCount >= 10, `弹层一屏列出全员（${out.rowCount} 行，无翻页）`);
+    ok(out.subs.every((n, i) => i === 0 || out.subs[i - 1] >= n), `默认按最活跃倒序（前几位场次 ${JSON.stringify(out.subs)}）`);
     ok(out.selBefore === 2, `多选计数正确（选了 ${out.selBefore} 人）`);
     ok(out.players === 2 && out.teams.every(t => t === 1), '一次加入 2 人到 t1');
     ok(out.closed === false, '加入后弹层关闭');
@@ -228,8 +230,6 @@ try {
       page.onResetPick({ currentTarget: { dataset: { mode: 'clear' } } });
       return store.getState().players.length;
     });
-    await page.waitFor(700);
-    const out = await mp.evaluate(() => getApp().store.getState().players.length);
     ok(out === 0, `玩家与比分全清（players=${out}）`);
   }
 
