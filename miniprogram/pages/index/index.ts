@@ -6,6 +6,7 @@ import { computeSessionMvp } from '../../core/victoryStats.js';
 import { buildProfileSessions } from '../../core/profileSession.js';
 import { buildPosterLayout, paintPoster } from '../../core/poster.js';
 import { deriveVoteSessionKey } from '../../shared-logic/voteSessionKey.js';
+import { applyTheme, setThemePref, effectiveTheme } from '../../core/theme.js';
 
 const EMOJI_POOL = ['🐶', '🐱', '🐭', '🐰', '🦊', '🐻', '🐼', '🐯'];
 
@@ -40,6 +41,8 @@ Page({
     rankHint: '',
     preview: null as null | { upgradeText: string; detail: string },
     accentColor: ACCENT_BY_THEME.light,
+    themeClass: '', // 外观覆盖：''(auto) / 'theme--light' / 'theme--dark'，挂到 .page 根
+    themePref: 'auto' as 'auto' | 'light' | 'dark', // 外观开关选中态
     roomCode: '',
     mvpText: '',
     resetSheet: false, // 重置底部弹层显隐（页面内自定义，替代原生 actionSheet+modal）
@@ -56,16 +59,27 @@ Page({
   order: [] as number[],
 
   onLoad() {
-    // getSystemInfoSync 已废弃；getAppBaseInfo 基础库 2.20+，老库回退
-    const base = wx.getAppBaseInfo ? wx.getAppBaseInfo() : wx.getSystemInfoSync();
-    const theme = (base.theme || 'light') as string;
-    this.setData({ accentColor: ACCENT_BY_THEME[theme] || ACCENT_BY_THEME.light });
-    wx.onThemeChange?.((res) => {
-      this.setData({ accentColor: ACCENT_BY_THEME[res.theme] || ACCENT_BY_THEME.light });
-    });
+    this.syncAppearance();
+    // auto 偏好时跟随系统主题实时切换（accentColor 是 switch 组件属性，吃不到 CSS 变量，单独维护）
+    wx.onThemeChange?.(() => this.syncAppearance());
+  },
+
+  /** 同步外观：themeClass + 导航栏（applyTheme）+ switch 的 accentColor（按生效主题，非系统主题） */
+  syncAppearance() {
+    applyTheme(this);
+    const eff = effectiveTheme();
+    this.setData({ accentColor: ACCENT_BY_THEME[eff] || ACCENT_BY_THEME.light });
+  },
+
+  /** 外观开关：跟随系统 / 浅色 / 深色 */
+  onThemePick(e: WechatMiniprogram.TouchEvent) {
+    const pref = String(e.currentTarget.dataset.pref || 'auto') as 'auto' | 'light' | 'dark';
+    setThemePref(pref);
+    this.syncAppearance();
   },
 
   onShow() {
+    this.syncAppearance();
     wx.showShareMenu({ withShareTicket: true });
     this.setData({ roomCode: getOwnerSession().getCode() || '' });
     this.refresh();

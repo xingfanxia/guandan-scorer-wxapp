@@ -1,6 +1,7 @@
 // 玩家档案：openid 维度战绩 + 荣誉（合规别名渲染）+ 成就（读时派生，不落库）
 import { ACHIEVEMENT_COUNT } from '../../shared-logic/achievementLogic.js';
 import { buildProfileVM } from '../../core/profileVM.js';
+import { applyTheme } from '../../core/theme.js';
 
 interface ProfileStats {
   sessionsPlayed: number;
@@ -35,6 +36,7 @@ Page({
   },
 
   onShow() {
+    applyTheme(this);
     this.fetchProfile();
   },
 
