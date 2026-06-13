@@ -228,6 +228,8 @@ try {
       page.onResetPick({ currentTarget: { dataset: { mode: 'clear' } } });
       return store.getState().players.length;
     });
+    await page.waitFor(700);
+    const out = await mp.evaluate(() => getApp().store.getState().players.length);
     ok(out === 0, `玩家与比分全清（players=${out}）`);
   }
 
