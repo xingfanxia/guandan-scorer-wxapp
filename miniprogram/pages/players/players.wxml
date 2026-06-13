@@ -33,7 +33,7 @@
       <text class="lad__cell lad__num">{{p.ladderText}}</text>
       <text class="lad__cell lad__num">{{p.totalSessions}}</text>
     </view>
-    <view class="lad__hint">打满 3 场小程序天梯局进正式榜；待校准玩家暂列底部，分数为 web 历史折算起评分（带 *）</view>
+    <view class="lad__hint">累计 3 场（web + 小程序）进正式榜，新人待校准暂列底部 · 带 * 为 web 历史折算起评分，打小程序天梯局后实结</view>
   </view>
 
   <!-- 玩家详情 -->
@@ -42,13 +42,15 @@
       <view class="who__id">
         <text class="who__name">{{detail.emoji}} {{detail.displayName}}</text>
         <text class="who__sub">@{{detail.handle}}{{detail.tagline ? ' · ' + detail.tagline : ''}}</text>
-        <text class="who__sub" wx:if="{{detail.summary}}">小程序 {{detail.summary.sessionsPlayed}} 场 · 胜率 {{detail.summary.winRate}} · 天梯 {{detail.summary.ladder}}</text>
-        <text class="who__sub" wx:if="{{!detail.bound}}">未绑定微信 —— 只有 web 版老战绩</text>
+        <text class="who__sub" wx:if="{{detail.summary}}">{{detail.webSource ? 'web 历史' : '综合'}} {{detail.summary.sessionsPlayed}} 场 · 胜率 {{detail.summary.winRate}} · 天梯 {{detail.summary.ladder}}{{detail.seeded ? '（起评分）' : ''}}</text>
+        <text class="who__sub" wx:if="{{detail.summary && detail.webSource}}">未绑定微信 —— 展示的是 web 版战绩，本人绑定后并入小程序</text>
+        <text class="who__sub" wx:if="{{detail.webFetchFailed}}">未绑定微信 · 完整战绩暂时拉取失败，仅显示 web 概要</text>
+        <text class="who__sub" wx:if="{{!detail.summary && !detail.webFetchFailed}}">还没有战绩</text>
       </view>
     </view>
 
     <view class="card section" wx:if="{{detail.statCells.length > 0}}">
-      <view class="section__title">小程序战绩</view>
+      <view class="section__title">{{detail.webSource ? 'web 版战绩' : '综合战绩'}}</view>
       <view class="stat-grid">
         <view class="stat" wx:for="{{detail.statCells}}" wx:key="label">
           <text class="stat__num">{{item.value}}</text>
@@ -68,8 +70,22 @@
       </view>
     </view>
 
-    <view class="card section">
-      <view class="section__title">web 版老战绩</view>
+    <view class="card section" wx:if="{{detail.achievementRows.length > 0}}">
+      <view class="section__title">成就 {{detail.achievementRows.length}}/{{detail.achievementTotal}}</view>
+      <view class="ach" wx:for="{{detail.achievementRows}}" wx:key="id">
+        <text class="ach__badge">{{item.badge}}</text>
+        <view class="ach__main">
+          <text class="ach__name">{{item.name}}</text>
+          <text class="ach__desc">{{item.desc}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- web 老战绩概要：已绑定玩家单列原始 web（上方综合战绩已并入）；
+         未绑定且富战绩拉取失败时也回退到这 3 格概要（不编造富档案）。
+         未绑定且拉取成功时上方整块已是 web 战绩，不重复。 -->
+    <view class="card section" wx:if="{{detail.bound || detail.webFetchFailed}}">
+      <view class="section__title">{{detail.bound ? 'web 版老战绩' : 'web 版战绩（概要）'}}</view>
       <view class="stat-grid">
         <view class="stat" wx:for="{{detail.webCells}}" wx:key="label">
           <text class="stat__num">{{item.value}}</text>

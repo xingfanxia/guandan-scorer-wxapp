@@ -166,24 +166,29 @@ try {
   }
   expect(listRows.length >= 10, `天梯榜应列出池玩家（24 人池），实际 ${listRows.length} 行`);
   expect(listRows.every(r => /^\d+\*?$/.test(r.ladderText)), `每行都应有天梯分（含 * 起评分），样例 ${JSON.stringify(listRows.slice(0, 3).map(r => r.ladderText))}`);
-  // 待校准（<3 场天梯结算）不参与正式排名，rank 列显示「待校准」+ 沉底；尚无人打满 3 场 → 全部待校准
+  // 校准门 = 历史总场次（web+小程序合计）≥ 3：web 老牌友凭历史直接进正式榜，真·新人(<3场)才待校准沉底
   const provisional = listRows.filter(r => !r.calibrated);
-  expect(provisional.length === listRows.length, `尚无人打满 3 场 → 应全部待校准，实际 ${listRows.length - provisional.length} 人已校准`);
-  expect(listRows.every(r => r.calibrated || r.rankText === '待校准'), `待校准行 rank 列应显示「待校准」，样例 ${JSON.stringify(listRows.slice(0, 2).map(r => r.rankText))}`);
-  expect(listRows.every(r => r.calibrated || r.ladderText.endsWith('*')), '待校准分数应带 * 标注（起评分）');
+  const calibrated = listRows.filter(r => r.calibrated);
+  expect(calibrated.length > 0, `池中 web 老牌友(≥3 场历史)应已校准进正式榜，实际 0 人已校准`);
+  expect(calibrated.every(r => r.totalSessions >= 3), `已校准玩家历史场次必须 ≥3，违例 ${JSON.stringify(calibrated.filter(r => r.totalSessions < 3).map(r => [r.handle, r.totalSessions]))}`);
+  expect(provisional.every(r => r.totalSessions < 3), `待校准玩家历史场次必须 <3，违例 ${JSON.stringify(provisional.filter(r => r.totalSessions >= 3).map(r => [r.handle, r.totalSessions]))}`);
+  expect(calibrated.every(r => /^\d+$/.test(r.rankText)), `已校准行 rank 列应为正式名次数字，样例 ${JSON.stringify(calibrated.slice(0, 2).map(r => r.rankText))}`);
+  expect(provisional.every(r => r.rankText === '待校准'), `待校准行 rank 列应显示「待校准」，样例 ${JSON.stringify(provisional.slice(0, 2).map(r => r.rankText))}`);
+  // * 标记 ≡ seeded（web 折算起评分），与校准状态独立 —— 老牌友进榜了分数仍可能是起评分(带*)
+  expect(listRows.every(r => r.ladderText.endsWith('*') === r.seeded), `* 标记应等价于 seeded(起评分)，违例 ${JSON.stringify(listRows.filter(r => r.ladderText.endsWith('*') !== r.seeded).slice(0, 2).map(r => [r.handle, r.ladderText, r.seeded]))}`);
   // 已校准必须排在待校准之前（排序不变量）
   const firstProvIdx = listRows.findIndex(r => !r.calibrated);
   const lastCalibIdx = listRows.map(r => r.calibrated).lastIndexOf(true);
   expect(firstProvIdx === -1 || lastCalibIdx === -1 || lastCalibIdx < firstProvIdx, '已校准玩家必须排在待校准之前');
-  console.log(`天梯榜首位 ${listRows[0].emoji} ${listRows[0].displayName}（${listRows[0].ladderText}，${listRows[0].rankText}）· 共 ${listRows.length} 行 · ${provisional.length} 待校准`);
+  console.log(`天梯榜首位 ${listRows[0].emoji} ${listRows[0].displayName}（${listRows[0].ladderText}，#${listRows[0].rankText}，${listRows[0].totalSessions}场）· 共 ${listRows.length} 行 · ${calibrated.length} 已校准 / ${provisional.length} 待校准`);
   await shot('03-ladder-list.png');
 
-  // 直驱 onTapPlayer（等价于点首行），再轮询 detail 数据
-  const firstHandle = listRows[0].handle;
+  // 详情：挑一名「未绑定的 web 老牌友」（bound=false 且历史≥3场）→ 验证 web-only 玩家档案也完整
+  const veteran = listRows.find(r => !r.bound && r.totalSessions >= 3) || listRows[0];
   await step(miniProgram.evaluate((h) => {
     const pages = getCurrentPages();
     pages[pages.length - 1].onTapPlayer({ currentTarget: { dataset: { handle: h } } });
-  }, firstHandle), 'invoke onTapPlayer');
+  }, veteran.handle), 'invoke onTapPlayer');
   let detail = null;
   for (let i = 0; i < 12; i++) {
     await page.waitFor(1000);
@@ -191,9 +196,16 @@ try {
     if (detail) break;
   }
   expect(detail, 'profile_get_by_handle 应返回并展示详情');
-  expect(detail.handle === firstHandle, `详情 handle 应为 ${firstHandle}，实际 ${detail && detail.handle}`);
-  expect(Array.isArray(detail.webCells) && detail.webCells.length === 3, 'web 老战绩区应有 3 个 cell');
-  console.log(`玩家详情：${detail.emoji} ${detail.displayName} @${detail.handle} · bound=${detail.bound} · 小程序statCells=${detail.statCells.length} · 荣誉=${detail.honorRows.length}`);
+  expect(detail.handle === veteran.handle, `详情 handle 应为 ${veteran.handle}，实际 ${detail && detail.handle}`);
+  expect(detail.summary, '详情应有 summary（战绩概览），未绑定玩家也不例外');
+  // 核心修复：未绑定（web-only）玩家的档案必须完整 —— 不止 3 格 web 概要，而是完整战绩格 + 荣誉
+  if (!detail.bound) {
+    expect(detail.webSource === true, '未绑定玩家档案来源应标记为 web');
+    expect(detail.statCells.length >= 5, `未绑定玩家应有完整战绩格（≥5，含总局数/平均名次/天梯等），实际 ${detail.statCells.length}（这是「档案太简略」的回归点）`);
+    expect(detail.honorRows.length > 0, `web 老牌友 @${veteran.handle} 应渲染荣誉行（web 全量战绩拉取成功的证据），实际 ${detail.honorRows.length}`);
+    expect(detail.statCells.every(c => c.value !== 'null' && c.value !== 'undefined'), `战绩格不得出现 null/undefined（头游/垫底缺失须略过），样例 ${JSON.stringify(detail.statCells.map(c => [c.label, c.value]))}`);
+  }
+  console.log(`玩家详情：${detail.emoji} ${detail.displayName} @${detail.handle} · bound=${detail.bound} · webSource=${detail.webSource} · 战绩格=${detail.statCells.length} · 荣誉=${detail.honorRows.length} · 成就=${(detail.achievementRows || []).length}`);
   await shot('04-player-detail.png');
 
   console.log('E2E PASS: 荣誉caption + 长图海报(布局/实绘) + 玩家天梯列表/详情 全部通过');
