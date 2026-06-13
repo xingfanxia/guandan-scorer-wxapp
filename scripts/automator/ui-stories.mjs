@@ -76,32 +76,40 @@ try {
   await mp.evaluate(() => { const p = getCurrentPages()[getCurrentPages().length - 1]; return p.getPoolPlayers && p.getPoolPlayers(); });
   await page.waitFor(1500);
 
-  console.log('\n■ Story 1：加人 — 从玩家池选首位（actionSheet）');
+  console.log('\n■ Story 1：加人 — 自定义弹层多选一次加入（一屏滚动，无翻页）');
   {
-    const r = await pollAfter(() => {
-      const app = getApp(); app.__done = false; app.__queue = [{ tap: 0 }]; app.__log = [];
+    // 缓存命中 → onAddPlayer 同步开弹层；勾两个 + 确认
+    const out = await mp.evaluate(() => {
+      const app = getApp();
       const store = app.store; store.resetGame(false); store.setMode('6');
       const page = getCurrentPages()[getCurrentPages().length - 1];
-      Promise.resolve(page.onAddPlayer({ currentTarget: { dataset: { team: 1 } } }))
-        .then(() => setTimeout(() => { app.__done = true; }, 450));
+      page.onAddPlayer({ currentTarget: { dataset: { team: 1 } } });
+      const sheet = page.data.poolSheet;
+      const rowCount = sheet.rows.length;
+      const shown = sheet.show;
+      page.onPoolToggle({ currentTarget: { dataset: { idx: 0 } } });
+      page.onPoolToggle({ currentTarget: { dataset: { idx: 1 } } });
+      const selBefore = page.data.poolSheet.selectedCount;
+      page.onPoolConfirm();
+      const s = store.getState();
+      return { shown, rowCount, selBefore, closed: page.data.poolSheet.show, players: s.players.length, teams: s.players.map(p => p.team) };
     });
-    ok(r.log.some(l => l.startsWith('AS:[')), `弹出选人 actionSheet`);
-    ok(r.players.length === 1 && r.players[0].team === 1, '池首位入队 t1');
-    ok(Boolean(r.players[0].handle), `带 handle（@${r.players[0].handle}）`);
+    ok(out.shown && out.rowCount >= 10, `弹层一屏列出全员（${out.rowCount} 行，无翻页）`);
+    ok(out.selBefore === 2, `多选计数正确（选了 ${out.selBefore} 人）`);
+    ok(out.players === 2 && out.teams.every(t => t === 1), '一次加入 2 人到 t1');
+    ok(out.closed === false, '加入后弹层关闭');
   }
 
-  console.log('\n■ Story 2：加人 — 手输 + itemList ≤6 项硬约束（PAGE=4：第一页手输 index=5）');
+  console.log('\n■ Story 2：加人 — 弹层「手动输入」入口（关弹层→隔宏任务 modal）');
   {
     const r = await pollAfter(() => {
-      const app = getApp(); app.__done = false; app.__queue = [{ tap: 5 }, { modal: { confirm: true, content: '临时工老陈' } }]; app.__log = [];
+      const app = getApp(); app.__done = false; app.__queue = [{ modal: { confirm: true, content: '临时工老陈' } }]; app.__log = [];
       const store = app.store; store.resetGame(false); store.setMode('6');
       const page = getCurrentPages()[getCurrentPages().length - 1];
-      Promise.resolve(page.onAddPlayer({ currentTarget: { dataset: { team: 2 } } }))
-        .then(() => setTimeout(() => { app.__done = true; }, 450));
+      page.onAddPlayer({ currentTarget: { dataset: { team: 2 } } });
+      page.onPoolManual(); // 关弹层 + setTimeout(60) 弹手输 modal
+      setTimeout(() => { app.__done = true; }, 500);
     });
-    const asLine = r.log.find(l => l.startsWith('AS:['));
-    const itemCount = asLine ? asLine.replace('AS:[', '').replace(/\]$/, '').split('|').length : 0;
-    ok(itemCount > 0 && itemCount <= 6, `actionSheet itemList ≤6 项（微信硬上限，实际 ${itemCount} 项）`);
     ok(r.log.some(l => l.startsWith('M:加玩家')), '走到手输 modal');
     ok(r.players.some(p => p.name === '临时工老陈' && p.team === 2), '手输玩家入队 t2');
   }
@@ -191,31 +199,35 @@ try {
     ok(out.before === 1 && out.after === 0, `撤销后历史归零（${out.before}→${out.after}）`);
   }
 
-  console.log('\n■ Story 9：重置 — 重新开一局保留玩家（actionSheet→隔宏任务 modal，房间保留）');
+  console.log('\n■ Story 9：重置 — 自定义弹层「重新开一局」保留玩家（无原生弹窗）');
   {
-    await mp.evaluate(() => {
-      const app = getApp(); app.__queue = [{ tap: 0 }, { modal: { confirm: true } }]; app.__log = [];
-      const store = app.store; store.resetGame(false); store.setMode('4');
+    const out = await mp.evaluate(() => {
+      const store = getApp().store; store.resetGame(false); store.setMode('4');
       [['王', 1], ['李', 1], ['张', 2], ['赵', 2]].forEach(x => store.addPlayer({ name: x[0], emoji: '🙂', team: x[1] }));
       store.applyResult('t1', [1, 2]);
-      getCurrentPages()[getCurrentPages().length - 1].onReset();
+      const page = getCurrentPages()[getCurrentPages().length - 1];
+      page.onReset();
+      const opened = page.data.resetSheet;
+      page.onResetPick({ currentTarget: { dataset: { mode: 'keep' } } });
+      const s = store.getState();
+      return { opened, closed: page.data.resetSheet, players: s.players.length, history: s.history.length };
     });
-    await page.waitFor(700); // onReset 的 setTimeout(60) + mock modal 同步 confirm
-    const out = await mp.evaluate(() => { const s = getApp().store.getState(); return { players: s.players.length, history: s.history.length }; });
-    ok(out.players === 4 && out.history === 0, `比分清零玩家保留（players=${out.players} h=${out.history}）`);
+    ok(out.opened === true, '点重置 → 弹层打开（resetSheet=true）');
+    ok(out.players === 4 && out.history === 0, `保留玩家比分清零（players=${out.players} h=${out.history}）`);
+    ok(out.closed === false, '选完弹层关闭');
   }
 
-  console.log('\n■ Story 10：重置 — 清空玩家重来（actionSheet 第 2 项→隔宏任务 modal）');
+  console.log('\n■ Story 10：重置 — 自定义弹层「清空玩家重来」');
   {
-    await mp.evaluate(() => {
-      const app = getApp(); app.__queue = [{ tap: 1 }, { modal: { confirm: true } }]; app.__log = [];
-      const store = app.store; store.resetGame(false); store.setMode('4');
+    const out = await mp.evaluate(() => {
+      const store = getApp().store; store.resetGame(false); store.setMode('4');
       [['王', 1], ['李', 1], ['张', 2], ['赵', 2]].forEach(x => store.addPlayer({ name: x[0], emoji: '🙂', team: x[1] }));
       store.applyResult('t1', [1, 2]);
-      getCurrentPages()[getCurrentPages().length - 1].onReset();
+      const page = getCurrentPages()[getCurrentPages().length - 1];
+      page.onReset();
+      page.onResetPick({ currentTarget: { dataset: { mode: 'clear' } } });
+      return store.getState().players.length;
     });
-    await page.waitFor(700);
-    const out = await mp.evaluate(() => getApp().store.getState().players.length);
     ok(out === 0, `玩家与比分全清（players=${out}）`);
   }
 

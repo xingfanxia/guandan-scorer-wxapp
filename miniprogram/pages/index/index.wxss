@@ -265,3 +265,170 @@
   flex: 1;
   width: auto;
 }
+
+/* ===== 底部弹层（选人 / 重置，页面内自定义，替代原生 actionSheet/modal） ===== */
+.sheet-mask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 100;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.18s;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.sheet-mask--on {
+  visibility: visible;
+  opacity: 1;
+}
+
+.sheet {
+  background: var(--surface);
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+  padding: var(--s3) var(--gutter);
+  padding-bottom: calc(var(--s3) + env(safe-area-inset-bottom));
+  max-height: 78vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.sheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--s2);
+}
+
+.sheet__title {
+  font-size: var(--font-title);
+  font-weight: 700;
+}
+
+.sheet__close {
+  font-size: var(--font-body);
+  color: var(--text-secondary);
+  padding: var(--s1) var(--s2);
+}
+
+.sheet__scroll {
+  max-height: 52vh;
+}
+
+.sheet__empty {
+  padding: var(--s4) 0;
+  text-align: center;
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+}
+
+.pool-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--touch-min);
+  padding: var(--s2) var(--s2);
+  border-radius: var(--radius-control);
+  border: 1rpx solid transparent;
+}
+
+.pool-item + .pool-item {
+  border-top: 1rpx solid var(--hairline);
+}
+
+.pool-item--on {
+  background: var(--surface-2);
+  border-color: var(--accent);
+}
+
+.pool-item__emoji {
+  font-size: var(--font-title);
+}
+
+.pool-item__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.pool-item__name {
+  display: block;
+  font-size: var(--font-body);
+  font-weight: 600;
+}
+
+.pool-item__sub {
+  display: block;
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+}
+
+.pool-item__check {
+  font-size: var(--font-title);
+  color: var(--accent);
+  font-weight: 700;
+  width: 48rpx;
+  text-align: center;
+}
+
+.sheet__foot {
+  display: flex;
+  gap: var(--s2);
+  margin-top: var(--s3);
+}
+
+.sheet__manual {
+  flex: 0 0 200rpx;
+  width: 200rpx;
+  height: var(--touch-min);
+  line-height: var(--touch-min);
+  font-size: var(--font-body);
+}
+
+.sheet__confirm {
+  flex: 1;
+  width: auto;
+  height: var(--touch-min);
+  line-height: var(--touch-min);
+  font-size: var(--font-body);
+}
+
+/* 重置弹层条目 */
+.reset-item {
+  padding: var(--s3) var(--s2);
+  border-radius: var(--radius-control);
+}
+
+.reset-item + .reset-item {
+  border-top: 1rpx solid var(--hairline);
+}
+
+.reset-item:active {
+  background: var(--surface-2);
+}
+
+.reset-item__main {
+  display: block;
+  font-size: var(--font-body);
+  font-weight: 600;
+}
+
+.reset-item__sub {
+  display: block;
+  margin-top: 4rpx;
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+}
+
+.reset-cancel {
+  margin-top: var(--s2);
+  padding: var(--s3) 0;
+  text-align: center;
+  font-size: var(--font-body);
+  color: var(--text-secondary);
+  border-top: 1rpx solid var(--hairline);
+}

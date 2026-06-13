@@ -142,4 +142,58 @@
     >应用结果</button>
   </view>
 
+  <!-- 选人弹层（页面内自定义，一屏滚动全员 + 多选一次加入） -->
+  <view class="sheet-mask {{poolSheet.show ? 'sheet-mask--on' : ''}}" catchtap="onPoolClose">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet__head">
+        <text class="sheet__title">选牌友加入{{poolSheet.team === 1 ? '蓝队' : '红队'}}</text>
+        <text class="sheet__close" catchtap="onPoolClose">关闭</text>
+      </view>
+      <scroll-view scroll-y class="sheet__scroll" wx:if="{{poolSheet.rows.length > 0}}">
+        <view
+          wx:for="{{poolSheet.rows}}"
+          wx:for-item="r"
+          wx:key="handle"
+          class="pool-item {{r.selected ? 'pool-item--on' : ''}}"
+          data-idx="{{index}}"
+          catchtap="onPoolToggle"
+        >
+          <text class="pool-item__emoji">{{r.emoji}}</text>
+          <view class="pool-item__main">
+            <text class="pool-item__name">{{r.displayName}}</text>
+            <text class="pool-item__sub">@{{r.handle}} · {{r.sub}}</text>
+          </view>
+          <text class="pool-item__check">{{r.selected ? '✓' : ''}}</text>
+        </view>
+      </scroll-view>
+      <view class="sheet__empty" wx:else>玩家池为空（或都已上场）—— 手动输入加人</view>
+      <view class="sheet__foot">
+        <button class="btn btn--ghost sheet__manual" catchtap="onPoolManual">手动输入</button>
+        <button
+          class="btn btn--primary sheet__confirm"
+          disabled="{{poolSheet.selectedCount === 0}}"
+          catchtap="onPoolConfirm"
+        >加入{{poolSheet.selectedCount > 0 ? ' ' + poolSheet.selectedCount + ' 人' : ''}}</button>
+      </view>
+    </view>
+  </view>
+
+  <!-- 重置弹层（页面内自定义，替代原生 actionSheet+modal） -->
+  <view class="sheet-mask {{resetSheet ? 'sheet-mask--on' : ''}}" catchtap="onResetPick" data-mode="cancel">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet__head">
+        <text class="sheet__title">重新开始</text>
+      </view>
+      <view class="reset-item" catchtap="onResetPick" data-mode="keep">
+        <text class="reset-item__main">重新开一局</text>
+        <text class="reset-item__sub">保留玩家，比分清零继续打 · 围观房间不变</text>
+      </view>
+      <view class="reset-item" catchtap="onResetPick" data-mode="clear">
+        <text class="reset-item__main">清空玩家重来</text>
+        <text class="reset-item__sub">玩家、比分、历史全部清空</text>
+      </view>
+      <view class="reset-cancel" catchtap="onResetPick" data-mode="cancel">取消</view>
+    </view>
+  </view>
+
 </view>
