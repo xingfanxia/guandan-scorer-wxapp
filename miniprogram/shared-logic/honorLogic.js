@@ -1,9 +1,19 @@
 // Vendored from guandan-scorer (web) — DO NOT EDIT HERE.
-// Upstream: shared/honorLogic.js @ 00f6ef6409271ff2e8e1d900c40464ac6136f2b3
+// Upstream: shared/honorLogic.js @ ba119979e8c2f37db2eb388d56e955f7c9ef7ccc
 // 改规则先改 web repo，再跑 npm run sync:shared 重新同步（见 CLAUDE.md）。
 import { resolvePlayerCountMode } from './playerCountMode.js';
 
 export const MIN_HONOR_GAMES = 5;
+
+/**
+ * Anti-sweep cap: a single player may hold at most this many POSITIVE honors.
+ * Without it, the session's strongest player tops nearly every positive metric
+ * simultaneously (吕布 + 石佛 + 连段王 + 团队中轴 + 保底核心 + 节奏核心 + 抗压王…),
+ * which makes the awards meaningless. Negatives (阿斗/翻车王/燃尽王) and neutral
+ * quirks (波动王/赌徒/大满贯/棋差一着) stay uncapped — they're diagnostic, not a
+ * sweep concern, and spreading "shame" honors would be less truthful.
+ */
+export const MAX_POSITIVE_HONORS_PER_PLAYER = 2;
 
 /**
  * Honor algorithms — pure computation half of src/stats/honors.js (zero host deps,
@@ -56,8 +66,20 @@ export function resolveHonorPlayerCount(modeValue, fallbackCount = 8) {
 
 /**
  * Calculate honors from explicit player/stat data.
+ *
+ * @param {object} [options]
+ * @param {boolean} [options.applyCap=true] - When true (the default, what the UI
+ *   renders), no player may hold more than MAX_POSITIVE_HONORS_PER_PLAYER positive
+ *   honors — overflow redistributes to the next-best qualifier (anti-sweep). Pass
+ *   false to get the raw, uncapped per-honor winners (each honor → its top scorer),
+ *   e.g. to test scoring independent of assignment.
  */
-export function calculateHonorsFromData(players = [], allStats = {}, totalPlayers = 8) {
+export function calculateHonorsFromData(players = [], allStats = {}, totalPlayers = 8, options = {}) {
+  // Match the null-tolerant contract of every other input (corrupted snapshots
+  // may pass null/garbage): the default param only substitutes for undefined.
+  const opts = options && typeof options === 'object' ? options : {};
+  const applyCap = opts.applyCap !== false;
+  const positiveHonorCap = applyCap ? MAX_POSITIVE_HONORS_PER_PLAYER : Infinity;
   const playerList = Array.isArray(players) ? players : [];
   const statsByPlayer = allStats && typeof allStats === 'object' && !Array.isArray(allStats)
     ? allStats
@@ -343,166 +365,255 @@ export function calculateHonorsFromData(players = [], allStats = {}, totalPlayer
     }
   }
 
-  const mvp = bestBy(eligible, (a, b) =>
-    (a.globalImpactScore - b.globalImpactScore) ||
-    (b.avg - a.avg) ||
-    (a.firstCount - b.firstCount)
-  );
-  assign('mvp', mvp, mvp?.globalImpactScore.toFixed(2));
-
-  const burden = bestBy(eligible, (a, b) =>
-    (a.globalBurdenScore - b.globalBurdenScore) ||
-    (a.avg - b.avg) ||
-    (a.lastCount - b.lastCount)
-  );
-  assign('burden', burden, burden?.globalBurdenScore.toFixed(2));
-
-  const stable = bestBy(
-    eligible.filter(metric => metric.avg <= mid && metric.variance <= totalPlayers),
-    (a, b) =>
-      (a.stabilityScore - b.stabilityScore) ||
-      (b.variance - a.variance) ||
-      (b.avg - a.avg)
-  );
-  assign('stable', stable, stable?.variance.toFixed(2));
-
-  const rollercoaster = bestBy(
-    eligible.filter(metric => metric.movement >= Math.max(4, metric.games - 1)),
-    (a, b) =>
-      (a.volatilityScore - b.volatilityScore) ||
-      (a.movement - b.movement) ||
-      (a.variance - b.variance)
-  );
-  assign('rollercoaster', rollercoaster, rollercoaster?.movement);
-
-  const comeback = bestBy(
-    eligible.filter(metric => metric.improvement > 1 && metric.lateAvg <= mid),
-    (a, b) =>
-      (a.improvement - b.improvement) ||
-      (b.lateAvg - a.lateAvg) ||
-      (a.topHalfRate - b.topHalfRate)
-  );
-  assign('comeback', comeback, comeback ? `+${comeback.improvement.toFixed(1)}` : null);
-
-  const fanche = bestBy(
-    eligible.filter(metric => metric.crashes > 0),
-    (a, b) =>
-      (a.crashes - b.crashes) ||
-      (a.movement - b.movement) ||
-      (a.variance - b.variance)
-  );
-  assign('fanche', fanche, fanche?.crashes);
-
-  const gambler = bestBy(
-    eligible.filter(metric => metric.firstCount > 0 && metric.lastCount > 0),
-    (a, b) => {
-      const scoreA = Math.sqrt(a.firstRate * a.lastRate) * (a.firstCount + a.lastCount);
-      const scoreB = Math.sqrt(b.firstRate * b.lastRate) * (b.firstCount + b.lastCount);
-      return (scoreA - scoreB) || (a.movement - b.movement);
+  // Honor specs — one per award. Each carries the SAME filter, comparator, and
+  // score string as the original independent bestBy(...) calls; the assignment
+  // loop below adds the anti-sweep cap on top without touching the scoring.
+  //
+  // `positive: true` marks an award subject to MAX_POSITIVE_HONORS_PER_PLAYER.
+  // Positive specs are ordered flagship-first (mvp — always truthful) then by
+  // descending filter strictness (节奏核心's 5-condition gate → 石佛's broad
+  // avg≤mid gate). Narrow honors claim their often-sole qualifier before broad
+  // honors exhaust a strong player's cap, which maximizes spread. Order among
+  // the uncapped (negative / neutral) specs is irrelevant — they're independent.
+  const honorSpecs = [
+    {
+      key: 'mvp', positive: true, flagship: true, // assigned first, always the genuine best
+      filter: () => true,
+      compare: (a, b) =>
+        (a.globalImpactScore - b.globalImpactScore) ||
+        (b.avg - a.avg) ||
+        (a.firstCount - b.firstCount),
+      score: m => m.globalImpactScore.toFixed(2)
+    },
+    {
+      key: 'frequent', positive: true,
+      filter: m =>
+        m.changes >= 2 &&
+        m.topHalfRate >= 0.75 &&
+        m.avg <= midRank &&
+        m.bestTopHalfStreak >= 3 &&
+        m.teamEdgeRate >= 0.5,
+      compare: (a, b) =>
+        (a.tempoCoreScore - b.tempoCoreScore) ||
+        (a.teamEdgeRate - b.teamEdgeRate) ||
+        (a.topHalfRate - b.topHalfRate) ||
+        (a.changeRate - b.changeRate) ||
+        (b.avg - a.avg),
+      score: m => `${Math.round(m.teamEdgeRate * 100)}%`
+    },
+    {
+      key: 'resilient', positive: true,
+      filter: m => m.pressureRebounds > 0 && m.topHalfRate >= 0.35,
+      compare: (a, b) =>
+        (a.resilienceScore - b.resilienceScore) ||
+        (a.pressureRecoveryRate - b.pressureRecoveryRate) ||
+        (a.sustainedRecoveryRate - b.sustainedRecoveryRate) ||
+        (b.pressureRate - a.pressureRate) ||
+        (a.pressureRebounds - b.pressureRebounds) ||
+        (b.avg - a.avg),
+      score: m => `${m.pressureRebounds}/${m.pressureRounds}`
+    },
+    {
+      key: 'carp', positive: true,
+      filter: m => m.comebackArcScore > 1.5 && m.lateAvg <= mid,
+      compare: (a, b) =>
+        (a.comebackArcScore - b.comebackArcScore) ||
+        (a.improvement - b.improvement) ||
+        (b.lateAvg - a.lateAvg),
+      score: m => `+${m.improvement.toFixed(1)}`
+    },
+    {
+      key: 'comeback', positive: true,
+      filter: m => m.improvement > 1 && m.lateAvg <= mid,
+      compare: (a, b) =>
+        (a.improvement - b.improvement) ||
+        (b.lateAvg - a.lateAvg) ||
+        (a.topHalfRate - b.topHalfRate),
+      score: m => `+${m.improvement.toFixed(1)}`
+    },
+    {
+      key: 'nonstick', positive: true,
+      filter: m => m.lastCount === 0 && m.teammateAvg !== null,
+      compare: (a, b) =>
+        (a.floorCoreScore - b.floorCoreScore) ||
+        (a.supportFloorRate - b.supportFloorRate) ||
+        (a.teammateDelta - b.teammateDelta) ||
+        (b.worstRank - a.worstRank) ||
+        (b.avg - a.avg),
+      score: m => `+${m.teammateDelta.toFixed(1)}`
+    },
+    {
+      key: 'median', positive: true,
+      filter: m => m.teammateAvg !== null && m.teammateDelta > 0,
+      compare: (a, b) =>
+        (a.teamAnchorScore - b.teamAnchorScore) ||
+        (a.teammateDelta - b.teammateDelta) ||
+        (a.teammateLeadRate - b.teammateLeadRate) ||
+        (b.avg - a.avg),
+      score: m => `+${m.teammateDelta.toFixed(1)}`
+    },
+    {
+      key: 'streak', positive: true,
+      filter: m => m.bestTopHalfStreak >= 3,
+      compare: (a, b) =>
+        (a.bestTopHalfStreak - b.bestTopHalfStreak) ||
+        (a.topHalfRate - b.topHalfRate) ||
+        (b.avg - a.avg),
+      score: m => m.bestTopHalfStreak
+    },
+    {
+      key: 'stable', positive: true,
+      filter: m => m.avg <= mid && m.variance <= totalPlayers,
+      compare: (a, b) =>
+        (a.stabilityScore - b.stabilityScore) ||
+        (b.variance - a.variance) ||
+        (b.avg - a.avg),
+      score: m => m.variance.toFixed(2)
+    },
+    {
+      key: 'burden', // flagship (negative) — uncapped, always the genuine worst
+      filter: () => true,
+      compare: (a, b) =>
+        (a.globalBurdenScore - b.globalBurdenScore) ||
+        (a.avg - b.avg) ||
+        (a.lastCount - b.lastCount),
+      score: m => m.globalBurdenScore.toFixed(2)
+    },
+    {
+      key: 'fanche',
+      filter: m => m.crashes > 0,
+      compare: (a, b) =>
+        (a.crashes - b.crashes) ||
+        (a.movement - b.movement) ||
+        (a.variance - b.variance),
+      score: m => m.crashes
+    },
+    {
+      key: 'burnout',
+      filter: m =>
+        m.decline > 1 &&
+        m.earlyAvg <= midRank &&
+        m.lateAvg > midRank &&
+        m.lateBottomHalfRate >= 0.5,
+      compare: (a, b) =>
+        (a.burnoutScore - b.burnoutScore) ||
+        (a.decline - b.decline) ||
+        (a.lateBottomHalfRate - b.lateBottomHalfRate) ||
+        (a.avg - b.avg),
+      score: m => `+${m.decline.toFixed(1)}`
+    },
+    {
+      key: 'rollercoaster',
+      filter: m => m.movement >= Math.max(4, m.games - 1),
+      compare: (a, b) =>
+        (a.volatilityScore - b.volatilityScore) ||
+        (a.movement - b.movement) ||
+        (a.variance - b.variance),
+      score: m => m.movement
+    },
+    {
+      key: 'gambler',
+      filter: m => m.firstCount > 0 && m.lastCount > 0,
+      compare: (a, b) => {
+        const scoreA = Math.sqrt(a.firstRate * a.lastRate) * (a.firstCount + a.lastCount);
+        const scoreB = Math.sqrt(b.firstRate * b.lastRate) * (b.firstCount + b.lastCount);
+        return (scoreA - scoreB) || (a.movement - b.movement);
+      },
+      score: m => `${m.firstCount}冠${m.lastCount}末`
+    },
+    {
+      key: 'complete',
+      filter: m => m.uniqueRanks.size >= totalPlayers,
+      compare: (a, b) =>
+        (a.uniqueRanks.size - b.uniqueRanks.size) ||
+        (a.uniqueRanks.size / a.games - b.uniqueRanks.size / b.games) ||
+        (a.movement - b.movement),
+      score: m => `${m.uniqueRanks.size}/${totalPlayers}`
+    },
+    {
+      key: 'almost',
+      filter: m => m.firstCount === 0 && m.secondCount > 0,
+      compare: (a, b) =>
+        (a.secondCount - b.secondCount) ||
+        (b.avg - a.avg) ||
+        (a.topHalfRate - b.topHalfRate),
+      score: m => `${m.secondCount}次第2`
     }
-  );
-  assign('gambler', gambler, gambler ? `${gambler.firstCount}冠${gambler.lastCount}末` : null);
+  ];
 
-  const complete = bestBy(
-    eligible.filter(metric => metric.uniqueRanks.size >= totalPlayers),
-    (a, b) =>
-      (a.uniqueRanks.size - b.uniqueRanks.size) ||
-      (a.uniqueRanks.size / a.games - b.uniqueRanks.size / b.games) ||
-      (a.movement - b.movement)
+  // Processing order for the anti-sweep cap:
+  //   1. flagship positives (mvp) first — assigned before any derived honor can
+  //      cap the genuine best player, so 吕布 is always truthful;
+  //   2. remaining positive honors most-constrained-first (fewest qualifiers —
+  //      the MRV heuristic) so a scarce honor claims its qualifier before a broad
+  //      honor exhausts that player's cap; ties broken by declared spec order;
+  //   3. uncapped (negative / neutral) honors, order irrelevant.
+  // Without (2), a narrow honor processed late can find all its qualifiers
+  // already capped and be needlessly deferred to pass 2 (over-capping a player),
+  // when claiming its scarce qualifier first would have spread it cleanly.
+  const qualifierCount = new Map(
+    honorSpecs.map(spec => [spec.key, eligible.filter(spec.filter).length])
   );
-  assign('complete', complete, complete ? `${complete.uniqueRanks.size}/${totalPlayers}` : null);
+  const positiveSpecs = honorSpecs.filter(spec => spec.positive);
+  const otherSpecs = honorSpecs.filter(spec => !spec.positive);
+  const assignmentOrder = [
+    ...positiveSpecs.filter(spec => spec.flagship),
+    ...positiveSpecs
+      .filter(spec => !spec.flagship)
+      .map(spec => ({ spec, index: honorSpecs.indexOf(spec) }))
+      .sort((a, b) =>
+        (qualifierCount.get(a.spec.key) - qualifierCount.get(b.spec.key)) ||
+        (a.index - b.index)
+      )
+      .map(entry => entry.spec),
+    ...otherSpecs
+  ];
 
-  const streak = bestBy(
-    eligible.filter(metric => metric.bestTopHalfStreak >= 3),
-    (a, b) =>
-      (a.bestTopHalfStreak - b.bestTopHalfStreak) ||
-      (a.topHalfRate - b.topHalfRate) ||
-      (b.avg - a.avg)
-  );
-  assign('streak', streak, streak?.bestTopHalfStreak);
+  // Two-pass assignment so the cap SPREADS without ever producing a false
+  // "本场无人" on an honor that real players earned:
+  //
+  //   Pass 1 — assign each honor to its best UNCAPPED qualifier. Once a player
+  //     holds the cap they're skipped, so positive honors spread across players.
+  //     A positive honor whose every qualifier is already capped is DEFERRED.
+  //   Pass 2 — award each deferred honor to its best qualifier, ignoring the
+  //     cap. This only fires when a roster can't fill an honor within the cap
+  //     (e.g. a 4-player two-pair game where all five "strength" honors resolve
+  //     to the same two players) — there, a real already-decorated winner beats
+  //     a misleading empty card. In a healthy 8-player session pass 2 never
+  //     fires and the cap holds strictly.
+  //
+  // With applyCap === false the cap is Infinity, so nothing is ever deferred and
+  // each honor simply goes to its top scorer — identical to the pre-cap behavior.
+  const positiveHonorsHeld = new Map();
+  const heldCount = id => positiveHonorsHeld.get(id) || 0;
+  const recordHonor = id => positiveHonorsHeld.set(id, heldCount(id) + 1);
+  const deferredPositives = [];
 
-  const median = bestBy(
-    eligible.filter(metric => metric.teammateAvg !== null && metric.teammateDelta > 0),
-    (a, b) =>
-      (a.teamAnchorScore - b.teamAnchorScore) ||
-      (a.teammateDelta - b.teammateDelta) ||
-      (a.teammateLeadRate - b.teammateLeadRate) ||
-      (b.avg - a.avg)
-  );
-  assign('median', median, median ? `+${median.teammateDelta.toFixed(1)}` : null);
+  for (const spec of assignmentOrder) {
+    const qualified = eligible.filter(spec.filter);
+    if (qualified.length === 0) continue;
 
-  const carp = bestBy(
-    eligible.filter(metric => metric.comebackArcScore > 1.5 && metric.lateAvg <= mid),
-    (a, b) =>
-      (a.comebackArcScore - b.comebackArcScore) ||
-      (a.improvement - b.improvement) ||
-      (b.lateAvg - a.lateAvg)
-  );
-  assign('carp', carp, carp ? `+${carp.improvement.toFixed(1)}` : null);
+    if (!spec.positive) {
+      const winner = bestBy(qualified, spec.compare);
+      assign(spec.key, winner, spec.score(winner));
+      continue;
+    }
 
-  const nonstick = bestBy(
-    eligible.filter(metric => metric.lastCount === 0 && metric.teammateAvg !== null),
-    (a, b) =>
-      (a.floorCoreScore - b.floorCoreScore) ||
-      (a.supportFloorRate - b.supportFloorRate) ||
-      (a.teammateDelta - b.teammateDelta) ||
-      (b.worstRank - a.worstRank) ||
-      (b.avg - a.avg)
-  );
-  assign('nonstick', nonstick, nonstick ? `+${nonstick.teammateDelta.toFixed(1)}` : null);
+    const uncapped = qualified.filter(m => heldCount(m.player.id) < positiveHonorCap);
+    if (uncapped.length === 0) {
+      deferredPositives.push({ spec, qualified }); // every qualifier capped — fill in pass 2
+      continue;
+    }
+    const winner = bestBy(uncapped, spec.compare);
+    recordHonor(winner.player.id);
+    assign(spec.key, winner, spec.score(winner));
+  }
 
-  const frequent = bestBy(
-    eligible.filter(metric =>
-      metric.changes >= 2 &&
-      metric.topHalfRate >= 0.75 &&
-      metric.avg <= midRank &&
-      metric.bestTopHalfStreak >= 3 &&
-      metric.teamEdgeRate >= 0.5
-    ),
-    (a, b) =>
-      (a.tempoCoreScore - b.tempoCoreScore) ||
-      (a.teamEdgeRate - b.teamEdgeRate) ||
-      (a.topHalfRate - b.topHalfRate) ||
-      (a.changeRate - b.changeRate) ||
-      (b.avg - a.avg)
-  );
-  assign('frequent', frequent, frequent ? `${Math.round(frequent.teamEdgeRate * 100)}%` : null);
-
-  const burnout = bestBy(
-    eligible.filter(metric =>
-      metric.decline > 1 &&
-      metric.earlyAvg <= midRank &&
-      metric.lateAvg > midRank &&
-      metric.lateBottomHalfRate >= 0.5
-    ),
-    (a, b) =>
-      (a.burnoutScore - b.burnoutScore) ||
-      (a.decline - b.decline) ||
-      (a.lateBottomHalfRate - b.lateBottomHalfRate) ||
-      (a.avg - b.avg)
-  );
-  assign('burnout', burnout, burnout ? `+${burnout.decline.toFixed(1)}` : null);
-
-  const almost = bestBy(
-    eligible.filter(metric => metric.firstCount === 0 && metric.secondCount > 0),
-    (a, b) =>
-      (a.secondCount - b.secondCount) ||
-      (b.avg - a.avg) ||
-      (a.topHalfRate - b.topHalfRate)
-  );
-  assign('almost', almost, almost ? `${almost.secondCount}次第2` : null);
-
-  const resilient = bestBy(
-    eligible.filter(metric => metric.pressureRebounds > 0 && metric.topHalfRate >= 0.35),
-    (a, b) =>
-      (a.resilienceScore - b.resilienceScore) ||
-      (a.pressureRecoveryRate - b.pressureRecoveryRate) ||
-      (a.sustainedRecoveryRate - b.sustainedRecoveryRate) ||
-      (b.pressureRate - a.pressureRate) ||
-      (a.pressureRebounds - b.pressureRebounds) ||
-      (b.avg - a.avg)
-  );
-  assign('resilient', resilient, resilient ? `${resilient.pressureRebounds}/${resilient.pressureRounds}` : null);
+  for (const { spec, qualified } of deferredPositives) {
+    const winner = bestBy(qualified, spec.compare);
+    recordHonor(winner.player.id);
+    assign(spec.key, winner, spec.score(winner));
+  }
 
   return honors;
 }
