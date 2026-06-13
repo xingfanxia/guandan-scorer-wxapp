@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeLadderDeltas, applyLadderDelta, seedLadderRating, LADDER_BASE, LADDER_TEAM_K } from '../miniprogram/core/ladder.js';
+import { computeLadderDeltas, applyLadderDelta, seedLadderRating, LADDER_BASE, LADDER_TEAM_K } from '../miniprogram/shared-logic/ladderLogic.js';
 
 const P = (id, team, rating, avgRanking) => ({ id, team, rating, avgRanking });
 

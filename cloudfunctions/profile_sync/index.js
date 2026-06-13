@@ -29,65 +29,8 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const MAX_SESSION_HISTORY = 200;
 const MAX_RANK = 8;
 
-// ===== 天梯分（WXAPP-9）：镜像 miniprogram/core/ladder.js —— 改那边记得同步这里 =====
-const LADDER_BASE = 1000;
-const LADDER_TEAM_K = 24;
-const LADDER_PERF_K = 28;        // 个人表现权重 > 胜负（2026-06-12 用户调参）
-const LADDER_WINNER_FLOOR = 1;
-const LADDER_LOSER_GAIN_CAP = 6; // 输局高光最多 +6
-
-function computeLadderDeltas({ mode, winnerTeam, players }) {
-  const list = Array.isArray(players) ? players : [];
-  const deltas = new Map(list.map(p => [String(p.id), 0]));
-  const t1 = list.filter(p => Number(p.team) === 1);
-  const t2 = list.filter(p => Number(p.team) === 2);
-  if (t1.length === 0 || t2.length === 0 || (winnerTeam !== 1 && winnerTeam !== 2)) return deltas;
-
-  const ratingOf = (p) => (Number.isFinite(Number(p.rating)) ? Number(p.rating) : LADDER_BASE);
-  const avg = (team) => team.reduce((s, p) => s + ratingOf(p), 0) / team.length;
-  const e1 = 1 / (1 + Math.pow(10, (avg(t2) - avg(t1)) / 400));
-  const teamDelta1 = LADDER_TEAM_K * ((winnerTeam === 1 ? 1 : 0) - e1);
-
-  const n = Number(mode) || list.length;
-  const midRank = (n + 1) / 2;
-  for (const p of list) {
-    const won = Number(p.team) === winnerTeam;
-    const teamDelta = Number(p.team) === 1 ? teamDelta1 : -teamDelta1;
-    const avgRanking = Number(p.avgRanking);
-    const perf = Number.isFinite(avgRanking) && avgRanking >= 1 && n > 1
-      ? (midRank - Math.min(avgRanking, n)) / (n - 1)
-      : 0;
-    let delta = Math.round(teamDelta + LADDER_PERF_K * perf);
-    delta = won ? Math.max(LADDER_WINNER_FLOOR, delta) : Math.min(LADDER_LOSER_GAIN_CAP, delta);
-    deltas.set(String(p.id), delta);
-  }
-  return deltas;
-}
-
-function applyLadderDelta(ladder, delta) {
-  const cur = ladder && typeof ladder === 'object' ? ladder : {};
-  const rating = Math.max(0, Math.round(
-    (Number.isFinite(Number(cur.rating)) ? Number(cur.rating) : LADDER_BASE) + (Number(delta) || 0)
-  ));
-  const sessions = (Number.isFinite(Number(cur.sessions)) ? Number(cur.sessions) : 0) + 1;
-  const peak = Math.max(rating, Number.isFinite(Number(cur.peak)) ? Number(cur.peak) : LADDER_BASE);
-  return { rating, sessions, peak };
-}
-
-function seedLadderRating(webStats) {
-  const s = Math.max(0, Number(webStats && webStats.sessionsPlayed) || 0);
-  if (s <= 0) return LADDER_BASE;
-  const won = Math.min(s, Math.max(0, Number(webStats.sessionsWon) || 0));
-  const winRate = won / s;
-  const avgRank = Number(webStats.avgRankingPerSession);
-  const rankNorm = Number.isFinite(avgRank) && avgRank >= 1
-    ? (4.5 - Math.min(avgRank, 8)) / 3.5
-    : 0;
-  const conf = Math.min(s, 20) / 20;
-  const rating = Math.round(LADDER_BASE + conf * (250 * rankNorm + 300 * (winRate - 0.5)));
-  return Math.max(700, Math.min(1300, rating));
-}
-// ===== 天梯分镜像结束 =====
+// 天梯分（WXAPP-9）：vendored CJS 镜像，源 shared/ladderLogic.js（改算法改 web repo + sync:shared）
+const { LADDER_BASE, computeLadderDeltas, applyLadderDelta, seedLadderRating } = require('./ladderLogic.js');
 
 function freshStats() {
   return {

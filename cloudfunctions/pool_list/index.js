@@ -4,24 +4,10 @@
  * 天梯分与场次（players 集合一次 in 查询 join，不回传 openid）。
  */
 const cloud = require('wx-server-sdk');
+const { LADDER_BASE, seedLadderRating } = require('./ladderLogic.js');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
-// 镜像 miniprogram/core/ladder.js seedLadderRating —— 改那边记得同步这里
-const LADDER_BASE = 1000;
-function seedLadderRating(webStats) {
-  const s = Math.max(0, Number(webStats && webStats.sessionsPlayed) || 0);
-  if (s <= 0) return LADDER_BASE;
-  const won = Math.min(s, Math.max(0, Number(webStats.sessionsWon) || 0));
-  const winRate = won / s;
-  const avgRank = Number(webStats.avgRankingPerSession);
-  const rankNorm = Number.isFinite(avgRank) && avgRank >= 1
-    ? (4.5 - Math.min(avgRank, 8)) / 3.5
-    : 0;
-  const conf = Math.min(s, 20) / 20;
-  const rating = Math.round(LADDER_BASE + conf * (250 * rankNorm + 300 * (winRate - 0.5)));
-  return Math.max(700, Math.min(1300, rating));
-}
 
 exports.main = async () => {
   const { OPENID } = cloud.getWXContext();
