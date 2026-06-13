@@ -656,22 +656,28 @@ Page({
 
   onReset() {
     wx.showActionSheet({
-      itemList: ['重置比分（保留玩家）', '连玩家一起清空'],
+      itemList: ['重新开一局（保留玩家）', '清空玩家重来'],
       success: (sheet) => {
         const preserve = sheet.tapIndex === 0;
-        wx.showModal({
-          title: preserve ? '重置整场比赛？' : '清空全部？',
-          content: (preserve ? '比分与历史清零，玩家保留。' : '比分、历史、玩家全部清空。') + '围观房间换新（旧房间留档）。',
-          success: (res) => {
-            if (!res.confirm) return;
-            getStore().resetGame(preserve);
-            getOwnerSession().detach(); // 新一局 = 新房间
-            this.order = [];
-            this.setData({ roomCode: '' });
-            this.refresh();
-          }
-        });
-      }
+        // actionSheet success → showModal 同步相邻会被微信吞掉确认框（选完「没反应」）—— 隔一个宏任务
+        setTimeout(() => {
+          wx.showModal({
+            title: preserve ? '重新开一局？' : '清空玩家重来？',
+            content: (preserve
+              ? '本场比分与历史清零、玩家保留，继续打下一场。'
+              : '本场比分、历史、玩家全部清空。')
+              + '围观房间不变，牌友继续看新一场。',
+            success: (res) => {
+              if (!res.confirm) return;
+              // 重置 = 同一桌继续打，**保留房间**（围观者不掉线）；换桌请用「换人数」开新房间
+              getStore().resetGame(preserve);
+              this.order = [];
+              this.refresh();
+            }
+          });
+        }, 60);
+      },
+      fail: () => { /* 用户取消，无操作 */ }
     });
   }
 });
