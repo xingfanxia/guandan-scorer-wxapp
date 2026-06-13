@@ -283,7 +283,9 @@ Page({
     if (this.addingPlayer) return; // 在途守卫：池子调用期间重复点会叠多个 actionSheet
     const team = Number(e.currentTarget.dataset.team) as 1 | 2;
     this.addingPlayer = true;
-    wx.showLoading({ title: '读取牌友…', mask: true });
+    // 缓存命中（60s 内）直接弹，不显 loading —— 避免 hideLoading→showActionSheet 的吞窗
+    const cached = Boolean(this.poolCache && Date.now() - this.poolCache.at < 60000);
+    if (!cached) wx.showLoading({ title: '读取牌友…', mask: true });
     let candidates: Array<{ handle: string; displayName: string; emoji: string }> = [];
     try {
       const pool = await this.getPoolPlayers();
@@ -292,14 +294,17 @@ Page({
       );
       candidates = pool.filter(p => !taken.has(p.handle));
     } finally {
-      wx.hideLoading();
+      if (!cached) wx.hideLoading();
       this.addingPlayer = false;
     }
-    if (candidates.length === 0) {
-      this.promptManualAdd(team);
-      return;
-    }
-    this.showPoolSheet(team, candidates, 0);
+    // 关键：wx.hideLoading() 与 wx.showActionSheet()/showModal() 同步相邻时，微信会把弹窗吞掉
+    //（原生 UI 通道冲突，2026-06-12 DevTool 实测 + 社区已知）—— 隔一个宏任务等 loading 收完再弹
+    const pop = () => {
+      if (candidates.length === 0) this.promptManualAdd(team);
+      else this.showPoolSheet(team, candidates, 0);
+    };
+    if (cached) pop();
+    else setTimeout(pop, 80);
   },
 
   poolCache: null as null | { at: number; players: Array<{ handle: string; displayName: string; emoji: string; sessionsPlayed: number }> },
