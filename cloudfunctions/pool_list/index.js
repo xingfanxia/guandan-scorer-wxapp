@@ -41,12 +41,15 @@ exports.main = async () => {
       for (const d of pr.data) playerByOpenid.set(d._id, d);
     }
 
+    const CALIBRATION_GAMES = 3; // 打满 3 场小程序天梯局才进正式榜
     const players = res.data.map(p => {
       const doc = p.boundOpenid ? playerByOpenid.get(p.boundOpenid) : null;
       const stats = doc && doc.stats ? doc.stats : null;
       const ladder = stats && stats.ladder;
+      // 天梯结算场次（只有小程序通关结算才 +1，与 web 并入的 sessionsPlayed 无关）
+      const ladSessions = ladder ? Number(ladder.sessions) || 0 : 0;
       // 挣过分用真分；没挣过（含未绑定）用 web 历史折算起评分（现算不落库，确定性）
-      const earned = Boolean(ladder && Number(ladder.sessions) > 0 && Number.isFinite(Number(ladder.rating)));
+      const earned = ladSessions > 0 && Number.isFinite(Number(ladder.rating));
       return {
         handle: p.handle,
         displayName: p.displayName,
@@ -56,16 +59,24 @@ exports.main = async () => {
         bound: Boolean(p.boundOpenid),
         boundToMe: Boolean(p.boundOpenid && p.boundOpenid === OPENID),
         ladder: earned ? Number(ladder.rating) : seedLadderRating(p.webStats),
-        ladderProvisional: !earned,
-        wxSessions: stats ? Number(stats.sessionsPlayed) || 0 : 0,
+        ladderSessions: ladSessions,
+        // 待校准：天梯结算 < 3 场（含未打过/起评分阶段）—— 不参与正式排名，沉底
+        provisional: ladSessions < CALIBRATION_GAMES,
+        ladderProvisional: ladSessions < CALIBRATION_GAMES, // 兼容旧字段（首页选人器等）
+        calibrationLeft: Math.max(0, CALIBRATION_GAMES - ladSessions),
+        wxSessions: ladSessions,
         // 绑定后 players.sessionsPlayed 已含 web 并入值 —— 直接用，别再和 webStats 相加
         totalSessions: stats && Number(stats.sessionsPlayed) > 0
           ? Number(stats.sessionsPlayed)
           : (p.webStats && Number(p.webStats.sessionsPlayed)) || 0
       };
     });
-    // 天梯榜序：按分数（起评分也参与），同分按 web 场次
-    players.sort((a, b) => b.ladder - a.ladder || b.sessionsPlayed - a.sessionsPlayed);
+    // 天梯榜序：已校准（≥3 场）按真分降序在前；待校准全部沉底（内部按起评分降序）
+    players.sort((a, b) =>
+      (a.provisional ? 1 : 0) - (b.provisional ? 1 : 0) ||
+      b.ladder - a.ladder ||
+      b.totalSessions - a.totalSessions
+    );
     return { ok: true, players };
   } catch (err) {
     // pool 集合尚未导入 → 空池

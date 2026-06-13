@@ -11,6 +11,9 @@ interface PoolRow {
   boundToMe: boolean;
   ladder: number;
   ladderProvisional: boolean;
+  provisional: boolean;
+  ladderSessions: number;
+  calibrationLeft: number;
   wxSessions: number;
   totalSessions: number;
 }
@@ -30,7 +33,8 @@ interface DetailVM {
 Page({
   data: {
     loading: true,
-    rows: [] as Array<PoolRow & { rank: number; ladderText: string }>,
+    rows: [] as Array<PoolRow & { rankText: string; ladderText: string; calibrated: boolean }>,
+    calibratedCount: 0,
     detail: null as DetailVM | null,
     detailLoading: false
   },
@@ -42,13 +46,20 @@ Page({
   fetchList() {
     wx.cloud.callFunction({ name: 'pool_list' }).then((res) => {
       const r = (res.result || {}) as { ok: boolean; players?: PoolRow[] };
-      const rows = (r.players || []).map((p, i) => ({
-        ...p,
-        rank: i + 1,
-        // * = 起评分（web 历史折算，还没打过小程序场）
-        ladderText: Number.isFinite(p.ladder) ? `${p.ladder}${p.ladderProvisional ? '*' : ''}` : '—'
-      }));
-      this.setData({ loading: false, rows });
+      // pool_list 已排好序（已校准在前、待校准沉底）；正式名次只编号已校准玩家
+      let rank = 0;
+      const rows = (r.players || []).map((p) => {
+        const calibrated = !p.provisional;
+        if (calibrated) rank += 1;
+        return {
+          ...p,
+          calibrated,
+          rankText: calibrated ? String(rank) : '待校准',
+          // 待校准分数加 * 标注（web 历史折算起评分，未实结）
+          ladderText: Number.isFinite(p.ladder) ? `${p.ladder}${calibrated ? '' : '*'}` : '—'
+        };
+      });
+      this.setData({ loading: false, rows, calibratedCount: rank });
     }).catch(() => {
       // 失败保留已有列表（onShow 每次都会重拉，瞬时故障不该把好数据闪成空池态）
       this.setData({ loading: false });

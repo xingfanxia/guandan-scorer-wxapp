@@ -214,13 +214,15 @@
   color: var(--text-secondary);
 }
 
+/* 两行两列：4 字按钮（对局历史/我的档案/玩家天梯/围观别人）一行四个会被截断 */
 .nav {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--s2);
 }
 
 .nav__btn {
-  flex: 1;
+  flex: 0 1 calc((100% - var(--s2)) / 2);
   height: var(--touch-min);
   line-height: var(--touch-min);
   font-size: var(--font-body);
