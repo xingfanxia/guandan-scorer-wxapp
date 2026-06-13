@@ -236,30 +236,31 @@ Page({
     const s = store.getState();
     if (s.mode === mode) return;
 
-    // 已开打：换人数 = 开新一局（重置比分；玩家超员时连名单一起清）
-    if (s.history.length > 0) {
+    // 换人数 = 重新组局，名单一律清空（杜绝旧局玩家残留成「placeholder」）
+    const started = s.history.length > 0;
+    if (started || s.players.length > 0) {
       wx.showModal({
-        title: `开新一局（${mode}人）？`,
-        content: '本场比分与历史将清零；围观房间换新（旧房间留档）。',
-        confirmText: '开新一局',
+        title: started ? `开新一局（${mode}人）？` : `换成 ${mode} 人局？`,
+        content: started
+          ? '本场比分、历史、玩家名单清零，按新人数重新加人；围观房间换新（旧房间留档）。'
+          : '当前玩家名单会清空，按新人数重新加人。',
+        confirmText: started ? '开新一局' : '换并清空',
         success: (m) => {
           if (!m.confirm) return;
-          store.resetGame(true);
-          let res = store.setMode(mode);
-          if (!res.ok) {
-            // 玩家数超过新模式上限 → 连玩家一起清
-            store.resetGame(false);
-            res = store.setMode(mode);
+          store.resetGame(false); // 清空玩家 —— 开新一局总是干净名单
+          store.setMode(mode);
+          if (started) {
+            getOwnerSession().detach(); // 新一局 = 新房间，统计跟房间走
+            this.setData({ roomCode: '' });
           }
-          getOwnerSession().detach(); // 新一局 = 新房间，统计跟房间走
           this.order = [];
-          this.setData({ roomCode: '' });
           this.refresh();
         }
       });
       return;
     }
 
+    // 空名单未开打：直接切
     const res = store.setMode(mode);
     if (!res.ok) {
       wx.showToast({ title: res.msg || '切换失败', icon: 'none' });
@@ -275,14 +276,25 @@ Page({
     this.refresh();
   },
 
+  addingPlayer: false,
+
   /** 加人：玩家池优先（web 迁移过来的牌友），手输兜底 */
   async onAddPlayer(e: WechatMiniprogram.TouchEvent) {
+    if (this.addingPlayer) return; // 在途守卫：池子调用期间重复点会叠多个 actionSheet
     const team = Number(e.currentTarget.dataset.team) as 1 | 2;
-    const pool = await this.getPoolPlayers();
-    const taken = new Set(
-      getStore().getState().players.map((p: { handle?: string }) => p.handle).filter(Boolean)
-    );
-    const candidates = pool.filter(p => !taken.has(p.handle));
+    this.addingPlayer = true;
+    wx.showLoading({ title: '读取牌友…', mask: true });
+    let candidates: Array<{ handle: string; displayName: string; emoji: string }> = [];
+    try {
+      const pool = await this.getPoolPlayers();
+      const taken = new Set(
+        getStore().getState().players.map((p: { handle?: string }) => p.handle).filter(Boolean)
+      );
+      candidates = pool.filter(p => !taken.has(p.handle));
+    } finally {
+      wx.hideLoading();
+      this.addingPlayer = false;
+    }
     if (candidates.length === 0) {
       this.promptManualAdd(team);
       return;
@@ -295,13 +307,17 @@ Page({
   async getPoolPlayers() {
     if (this.poolCache && Date.now() - this.poolCache.at < 60000) return this.poolCache.players;
     try {
-      const res = await wx.cloud.callFunction({ name: 'pool_list' });
-      const r = (res.result || {}) as { ok: boolean; players?: Array<{ handle: string; displayName: string; emoji: string; sessionsPlayed: number }> };
+      // 云函数 hang 不能拖死加人按钮 —— 3.5s 超时降级（命中旧缓存或空池走手输）
+      const res = await Promise.race([
+        wx.cloud.callFunction({ name: 'pool_list' }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('pool_list timeout')), 3500))
+      ]);
+      const r = ((res as { result?: unknown }).result || {}) as { ok: boolean; players?: Array<{ handle: string; displayName: string; emoji: string; sessionsPlayed: number }> };
       const players = (r.ok && r.players) || [];
       this.poolCache = { at: Date.now(), players };
       return players;
     } catch {
-      return []; // 池子不可用 → 手输兜底
+      return this.poolCache ? this.poolCache.players : []; // 池子不可用/超时 → 旧缓存或手输兜底
     }
   },
 

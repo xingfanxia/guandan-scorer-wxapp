@@ -166,8 +166,16 @@ try {
   }
   expect(listRows.length >= 10, `天梯榜应列出池玩家（24 人池），实际 ${listRows.length} 行`);
   expect(listRows.every(r => /^\d+\*?$/.test(r.ladderText)), `每行都应有天梯分（含 * 起评分），样例 ${JSON.stringify(listRows.slice(0, 3).map(r => r.ladderText))}`);
-  const seeded = listRows.filter(r => r.ladderText.endsWith('*')).length;
-  console.log(`天梯榜第 1 名：${listRows[0].emoji} ${listRows[0].displayName}（${listRows[0].ladderText} 分）· 共 ${listRows.length} 行 · ${seeded} 人为起评分`);
+  // 待校准（<3 场天梯结算）不参与正式排名，rank 列显示「待校准」+ 沉底；尚无人打满 3 场 → 全部待校准
+  const provisional = listRows.filter(r => !r.calibrated);
+  expect(provisional.length === listRows.length, `尚无人打满 3 场 → 应全部待校准，实际 ${listRows.length - provisional.length} 人已校准`);
+  expect(listRows.every(r => r.calibrated || r.rankText === '待校准'), `待校准行 rank 列应显示「待校准」，样例 ${JSON.stringify(listRows.slice(0, 2).map(r => r.rankText))}`);
+  expect(listRows.every(r => r.calibrated || r.ladderText.endsWith('*')), '待校准分数应带 * 标注（起评分）');
+  // 已校准必须排在待校准之前（排序不变量）
+  const firstProvIdx = listRows.findIndex(r => !r.calibrated);
+  const lastCalibIdx = listRows.map(r => r.calibrated).lastIndexOf(true);
+  expect(firstProvIdx === -1 || lastCalibIdx === -1 || lastCalibIdx < firstProvIdx, '已校准玩家必须排在待校准之前');
+  console.log(`天梯榜首位 ${listRows[0].emoji} ${listRows[0].displayName}（${listRows[0].ladderText}，${listRows[0].rankText}）· 共 ${listRows.length} 行 · ${provisional.length} 待校准`);
   await shot('03-ladder-list.png');
 
   // 直驱 onTapPlayer（等价于点首行），再轮询 detail 数据

@@ -17,7 +17,7 @@
       <text class="lad__cell">场次</text>
     </view>
     <view
-      class="lad__row"
+      class="lad__row {{p.calibrated ? '' : 'lad__row--prov'}}"
       wx:for="{{rows}}"
       wx:for-item="p"
       wx:key="handle"
@@ -25,15 +25,15 @@
       data-handle="{{p.handle}}"
       bindtap="onTapPlayer"
     >
-      <text class="lad__cell lad__cell--rank">{{p.rank}}</text>
+      <text class="lad__cell lad__cell--rank {{p.calibrated ? '' : 'lad__cell--prov'}}">{{p.rankText}}</text>
       <view class="lad__cell lad__cell--name">
         <text class="lad__name">{{p.emoji}} {{p.displayName}}{{p.boundToMe ? '（我）' : ''}}</text>
-        <text class="lad__handle">@{{p.handle}}{{p.bound ? '' : ' · 未绑定'}}</text>
+        <text class="lad__handle">@{{p.handle}}{{p.bound ? '' : ' · 未绑定'}}{{p.calibrated ? '' : ' · 还差 ' + p.calibrationLeft + ' 场'}}</text>
       </view>
       <text class="lad__cell lad__num">{{p.ladderText}}</text>
       <text class="lad__cell lad__num">{{p.totalSessions}}</text>
     </view>
-    <view class="lad__hint">点玩家看完整档案 · 带 * 的是按 web 历史折算的起评分，打过小程序场后开始实结</view>
+    <view class="lad__hint">打满 3 场小程序天梯局进正式榜；待校准玩家暂列底部，分数为 web 历史折算起评分（带 *）</view>
   </view>
 
   <!-- 玩家详情 -->

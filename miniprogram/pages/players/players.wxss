@@ -33,9 +33,18 @@
 }
 
 .lad__cell--rank {
-  flex: 0 0 64rpx;
+  flex: 0 0 96rpx;
   color: var(--text-secondary);
   font-feature-settings: "tnum";
+}
+
+/* 待校准：整行降饱和、rank 列缩成小字标签 */
+.lad__row--prov {
+  opacity: 0.6;
+}
+
+.lad__cell--prov {
+  font-size: var(--font-label);
 }
 
 .lad__cell--name {
