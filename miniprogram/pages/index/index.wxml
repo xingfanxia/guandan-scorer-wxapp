@@ -146,8 +146,13 @@
   <view class="sheet-mask {{poolSheet.show ? 'sheet-mask--on' : ''}}" catchtap="onPoolClose">
     <view class="sheet" catchtap="noop">
       <view class="sheet__head">
-        <text class="sheet__title">选牌友加入{{poolSheet.team === 1 ? '蓝队' : '红队'}}</text>
+        <text class="sheet__title">选牌友加入</text>
         <text class="sheet__close" catchtap="onPoolClose">关闭</text>
+      </view>
+      <view class="sheet__seg">
+        <view class="sheet__seg-item {{poolSheet.target === 0 ? 'sheet__seg-item--on' : ''}}" data-target="0" catchtap="onPoolTarget">随机分队</view>
+        <view class="sheet__seg-item sheet__seg-item--t1 {{poolSheet.target === 1 ? 'sheet__seg-item--on' : ''}}" data-target="1" catchtap="onPoolTarget">蓝队</view>
+        <view class="sheet__seg-item sheet__seg-item--t2 {{poolSheet.target === 2 ? 'sheet__seg-item--on' : ''}}" data-target="2" catchtap="onPoolTarget">红队</view>
       </view>
       <scroll-view scroll-y class="sheet__scroll" wx:if="{{poolSheet.rows.length > 0}}">
         <view
