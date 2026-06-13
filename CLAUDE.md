@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 掼蛋计分助手 — 微信小程序版的掼蛋（Guandan）计分器。是 `~/projects/side-projects/guandan-scorer`（web 版，Vercel + KV）的 sibling repo，**不是 fork**：infra 与 web 版零重叠（原生小程序 + 微信云开发），只共享纯游戏逻辑。
 
-**当前状态（2026-06-12 晚）：WXAPP-2~5、WXAPP-8、WXAPP-9 代码侧完成**（分支 wxapp-2-scoring-loop）——单机计分闭环、云房间围观（watch+轮询）、投票/座位认领/档案、长图海报（web 手机版对位）、玩家池与 web 数据迁移、天梯分（简化 ELO + 起评分）、玩家天梯查询页；12 个云函数已部署；体验版 0.3.0 已上传。剩余人工步骤见 docs/PLAN.md「人工清单」（rooms 权限、认证、选体验版、体验成员、真机 QA）。
+**当前状态（2026-06-13）：WXAPP-2~5、WXAPP-8、WXAPP-9 代码侧完成 + 两条用户反馈修复**（分支 wxapp-2-scoring-loop，main 对齐 f5a88fc）——单机计分闭环、云房间围观（watch+轮询）、投票/座位认领/档案、长图海报（web 手机版对位）、玩家池与 web 数据迁移、天梯分（简化 ELO + 起评分；**校准门按历史总场次 web+小程序合计 <3 才待校准沉底，老牌友凭 web 历史直接进榜**）、玩家天梯查询页（**未绑定玩家也实时拉 web 全量战绩出完整档案：荣誉+成就+战绩格**）；体验版 **1.0.1** 已上传。⚠️ **profile_get_by_handle 加固（超时+降级诚实）待重部署**——本次 IDE 云会话漂移（ResourceNotFound.Namespace）阻塞，主链路 round-1 已 live，见 docs/PLAN.md。其余剩余人工步骤见「人工清单」（rooms 权限、认证、选体验版、体验成员、真机 QA）。
 
 ## 账号与环境（2026-06-12 注册完成）
 
