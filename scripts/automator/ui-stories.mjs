@@ -191,30 +191,31 @@ try {
     ok(out.before === 1 && out.after === 0, `撤销后历史归零（${out.before}→${out.after}）`);
   }
 
-  console.log('\n■ Story 9：重置 — 保留玩家（actionSheet 第 1 项→modal）');
+  console.log('\n■ Story 9：重置 — 重新开一局保留玩家（actionSheet→隔宏任务 modal，房间保留）');
   {
-    const out = await mp.evaluate(() => {
+    await mp.evaluate(() => {
       const app = getApp(); app.__queue = [{ tap: 0 }, { modal: { confirm: true } }]; app.__log = [];
       const store = app.store; store.resetGame(false); store.setMode('4');
       [['王', 1], ['李', 1], ['张', 2], ['赵', 2]].forEach(x => store.addPlayer({ name: x[0], emoji: '🙂', team: x[1] }));
       store.applyResult('t1', [1, 2]);
       getCurrentPages()[getCurrentPages().length - 1].onReset();
-      const s = store.getState();
-      return { players: s.players.length, history: s.history.length };
     });
+    await page.waitFor(700); // onReset 的 setTimeout(60) + mock modal 同步 confirm
+    const out = await mp.evaluate(() => { const s = getApp().store.getState(); return { players: s.players.length, history: s.history.length }; });
     ok(out.players === 4 && out.history === 0, `比分清零玩家保留（players=${out.players} h=${out.history}）`);
   }
 
-  console.log('\n■ Story 10：重置 — 连玩家一起清空（actionSheet 第 2 项→modal）');
+  console.log('\n■ Story 10：重置 — 清空玩家重来（actionSheet 第 2 项→隔宏任务 modal）');
   {
-    const out = await mp.evaluate(() => {
+    await mp.evaluate(() => {
       const app = getApp(); app.__queue = [{ tap: 1 }, { modal: { confirm: true } }]; app.__log = [];
       const store = app.store; store.resetGame(false); store.setMode('4');
       [['王', 1], ['李', 1], ['张', 2], ['赵', 2]].forEach(x => store.addPlayer({ name: x[0], emoji: '🙂', team: x[1] }));
       store.applyResult('t1', [1, 2]);
       getCurrentPages()[getCurrentPages().length - 1].onReset();
-      return store.getState().players.length;
     });
+    await page.waitFor(700);
+    const out = await mp.evaluate(() => getApp().store.getState().players.length);
     ok(out === 0, `玩家与比分全清（players=${out}）`);
   }
 
