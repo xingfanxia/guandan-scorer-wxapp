@@ -101,10 +101,10 @@
         </view>
         <view
           wx:if="{{playersCount < modeNum}}"
-          class="chip chip--add"
+          class="chip chip--add {{addingTeam === row.team ? 'chip--loading' : ''}}"
           data-team="{{row.team}}"
           bindtap="onAddPlayer"
-        >＋ 加人</view>
+        >{{addingTeam === row.team ? '读取中…' : '＋ 加人'}}</view>
       </view>
     </view>
 
