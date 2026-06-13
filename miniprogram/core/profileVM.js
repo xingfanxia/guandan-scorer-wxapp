@@ -18,17 +18,20 @@ export function buildProfileVM(stats) {
     ? { rating: Number(stats.ladder.rating), sessions: Number(stats.ladder.sessions) || 0, peak: Number(stats.ladder.peak) || Number(stats.ladder.rating) }
     : { ...LADDER_DEFAULT };
 
+  const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+  // 数值格：源字段为 null/undefined（如 web 端不跟踪头游/垫底）→ 略过该格，不显示「null」
+  const cell = (label, raw) => (raw === null || raw === undefined ? null : { label, value: String(raw) });
   const statCells = [
-    { label: '总局数', value: String(stats.totalGames) },
-    { label: '最长连胜', value: String(stats.longestWinStreak) },
+    cell('总局数', stats.totalGames),
+    cell('最长连胜', stats.longestWinStreak),
     { label: '平均名次', value: avgRank ? avgRank.toFixed(2) : '—' },
-    { label: '头游', value: String(stats.firstPlaceCount) },
-    { label: '垫底', value: String(stats.lastPlaceCount) },
-    { label: '最C/最闹票', value: `${stats.mvpVotes}/${stats.burdenVotes}` },
+    cell('头游', stats.firstPlaceCount),
+    cell('垫底', stats.lastPlaceCount),
+    { label: '最C/最闹票', value: `${num(stats.mvpVotes)}/${num(stats.burdenVotes)}` },
     { label: '天梯分', value: String(ladder.rating) },
     { label: '天梯峰值', value: String(ladder.peak) },
     { label: '天梯场次', value: String(ladder.sessions) }
-  ];
+  ].filter(Boolean);
 
   // normalizeHonorCounter：web 迁移来的 legacy 荣誉名（小丑/连胜王…）归一到现行 16 项，
   // 保证每行都有 caption、同义项计数不分裂

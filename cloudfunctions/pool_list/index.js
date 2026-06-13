@@ -41,7 +41,7 @@ exports.main = async () => {
       for (const d of pr.data) playerByOpenid.set(d._id, d);
     }
 
-    const CALIBRATION_GAMES = 3; // 打满 3 场小程序天梯局才进正式榜
+    const CALIBRATION_GAMES = 3; // 累计 3 场历史（web + 小程序合计）才进正式榜
     const players = res.data.map(p => {
       const doc = p.boundOpenid ? playerByOpenid.get(p.boundOpenid) : null;
       const stats = doc && doc.stats ? doc.stats : null;
@@ -50,6 +50,13 @@ exports.main = async () => {
       const ladSessions = ladder ? Number(ladder.sessions) || 0 : 0;
       // 挣过分用真分；没挣过（含未绑定）用 web 历史折算起评分（现算不落库，确定性）
       const earned = ladSessions > 0 && Number.isFinite(Number(ladder.rating));
+      // 历史总场次：绑定后 players.sessionsPlayed 已含 web 并入值 —— 直接用，别再和 webStats 相加；
+      // 未绑定回退 webStats。这是「校准」依据 —— 老牌友凭 web 历史就该进榜，不必再打满小程序局。
+      const totalSessions = stats && Number(stats.sessionsPlayed) > 0
+        ? Number(stats.sessionsPlayed)
+        : (p.webStats && Number(p.webStats.sessionsPlayed)) || 0;
+      // 待校准：历史总场次 < 3（真·新人才沉底）；有战绩历史的老牌友直接参与正式排名
+      const provisional = totalSessions < CALIBRATION_GAMES;
       return {
         handle: p.handle,
         displayName: p.displayName,
@@ -60,15 +67,14 @@ exports.main = async () => {
         boundToMe: Boolean(p.boundOpenid && p.boundOpenid === OPENID),
         ladder: earned ? Number(ladder.rating) : seedLadderRating(p.webStats),
         ladderSessions: ladSessions,
-        // 待校准：天梯结算 < 3 场（含未打过/起评分阶段）—— 不参与正式排名，沉底
-        provisional: ladSessions < CALIBRATION_GAMES,
-        ladderProvisional: ladSessions < CALIBRATION_GAMES, // 兼容旧字段（首页选人器等）
-        calibrationLeft: Math.max(0, CALIBRATION_GAMES - ladSessions),
+        provisional,
+        ladderProvisional: provisional, // 兼容旧字段（首页选人器等）
+        calibrationLeft: Math.max(0, CALIBRATION_GAMES - totalSessions),
         wxSessions: ladSessions,
-        // 绑定后 players.sessionsPlayed 已含 web 并入值 —— 直接用，别再和 webStats 相加
-        totalSessions: stats && Number(stats.sessionsPlayed) > 0
-          ? Number(stats.sessionsPlayed)
-          : (p.webStats && Number(p.webStats.sessionsPlayed)) || 0
+        // seeded：分数是 web 历史折算起评分（未在小程序实结）—— 与「待校准」独立，
+        // 用于 UI 的 * 标记。挣过分的玩家 earned=true → 无 *。
+        seeded: !earned,
+        totalSessions
       };
     });
     // 天梯榜序：已校准（≥3 场）按真分降序在前；待校准全部沉底（内部按起评分降序）

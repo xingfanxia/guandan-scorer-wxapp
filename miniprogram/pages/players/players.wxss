@@ -170,3 +170,32 @@
   font-weight: 700;
   font-feature-settings: "tnum";
 }
+
+/* 成就（与档案页同款；页面级 WXSS 不互通，此处镜像） */
+.ach {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) 0;
+  border-top: 1rpx solid var(--hairline);
+}
+
+.ach:first-of-type {
+  border-top: none;
+}
+
+.ach__badge {
+  font-size: var(--font-num-lg);
+}
+
+.ach__name {
+  display: block;
+  font-size: var(--font-body);
+  font-weight: 600;
+}
+
+.ach__desc {
+  display: block;
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+}

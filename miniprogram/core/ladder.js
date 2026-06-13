@@ -5,8 +5,9 @@
  * （小加分或只扣一点点），赢了躺平的混子保底 +1 不白嫖大分。
  * 队伍项：己队均分 vs 对队均分的期望胜率（强队赢弱队加分少、爆冷多得）。
  *
- * 纯函数，服务端权威实现在 cloudfunctions/profile_sync（含 pool_bind/pool_list 的
- * seedLadderRating）里 CJS 镜像同算法 —— 改这里记得同步那边。
+ * 纯函数。seedLadderRating 在 4 个云函数里 CJS 镜像同算法 —— 改这里记得全同步：
+ * cloudfunctions/{profile_sync, pool_bind, pool_list, profile_get_by_handle}。
+ * （computeLadderDeltas/applyLadderDelta 只在 profile_sync 镜像。）
  */
 
 export const LADDER_BASE = 1000;
