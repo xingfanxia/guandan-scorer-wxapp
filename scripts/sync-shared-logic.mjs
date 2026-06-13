@@ -26,6 +26,7 @@ const MANIFEST = [
   { src: 'shared/gameStatus.js', dest: 'gameStatus.js' },
   { src: 'shared/honorCatalog.js', dest: 'honorCatalog.js' },
   { src: 'shared/honorLogic.js', dest: 'honorLogic.js' },
+  { src: 'shared/ladderLogic.js', dest: 'ladderLogic.js' },
   { src: 'shared/playerCountMode.js', dest: 'playerCountMode.js' },
   { src: 'shared/roomSnapshotValidation.js', dest: 'roomSnapshotValidation.js' },
   { src: 'shared/ruleConfig.js', dest: 'ruleConfig.js' },
@@ -42,6 +43,32 @@ const MANIFEST = [
       }
       return code.replace(needle, "from './playerCountMode.js'");
     }
+  }
+];
+
+// 云函数是 CJS（require），吃不下 ESM 的 vendor 快照。给「无 import 的自包含纯模块」
+// （目前只有 ladderLogic）生成 CJS 镜像：剥掉 export 关键字 + 末尾补 module.exports。
+// 命中不到导出 / 出现 import / 命名导出块 → 抛错（上游改了形状，得更新这个 transform）。
+function esmToCjs(code) {
+  if (/^\s*import\s.+\sfrom\s/m.test(code) || /^\s*export\s+\{/m.test(code) || /^\s*export\s+\*/m.test(code)) {
+    throw new Error('esmToCjs: 仅支持 `export const/function`（vendor 的 CJS 源必须自包含、无 import/命名导出块）—— 形状变了，更新 CJS transform');
+  }
+  const names = [...code.matchAll(/^export\s+(?:const|function)\s+([A-Za-z0-9_$]+)/gm)].map(m => m[1]);
+  if (names.length === 0) {
+    throw new Error('esmToCjs: 没找到 `export const/function` —— ladderLogic 导出形状变了，更新 CJS transform');
+  }
+  const stripped = code.replace(/^export\s+(const|function)\s/gm, '$1 ');
+  return `${stripped}\nmodule.exports = { ${names.join(', ')} };\n`;
+}
+
+// CJS 镜像目标：每个云函数目录各放一份（云函数独立打包，不能跨目录共享文件）。
+// 源同 shared/ladderLogic.js —— 编辑只在 web repo，sync 重生成所有副本。
+const CJS_VENDORS = [
+  {
+    src: 'shared/ladderLogic.js',
+    file: 'ladderLogic.js',
+    transform: esmToCjs,
+    dirs: ['profile_sync', 'pool_bind', 'pool_list', 'profile_get_by_handle']
   }
 ];
 
@@ -121,6 +148,34 @@ if (checkMode) {
       console.log(`✓ ${dest} @ ${recorded.slice(0, 7)}`);
     }
   }
+  for (const { src, file, transform, dirs } of CJS_VENDORS) {
+    for (const dir of dirs) {
+      const destPath = join(repoRoot, 'cloudfunctions', dir, file);
+      const label = `cloudfunctions/${dir}/${file}`;
+      if (!existsSync(destPath)) {
+        console.error(`✗ ${label}: 快照文件缺失`);
+        drift++;
+        continue;
+      }
+      const actual = readFileSync(destPath, 'utf8');
+      const recorded = actual.match(/^\/\/ Upstream: .+ @ ([0-9a-f]{40})$/m)?.[1];
+      if (!recorded) {
+        console.error(`✗ ${label}: 头注缺失或格式不对`);
+        drift++;
+        continue;
+      }
+      const expected = buildVendorContent(src, transform, recorded);
+      if (expected === null) {
+        console.error(`✗ ${label}: 注记的 commit ${recorded.slice(0, 7)} 在上游不可达`);
+        drift++;
+      } else if (expected !== actual) {
+        console.error(`✗ ${label}: 与上游 ${recorded.slice(0, 7)} 重新生成的内容不一致 —— 疑似被手改`);
+        drift++;
+      } else {
+        console.log(`✓ ${label} @ ${recorded.slice(0, 7)}`);
+      }
+    }
+  }
   if (drift) {
     console.error(`\n${drift} 个文件偏离快照。手改请回滚；规则变更走 web repo + npm run sync:shared。`);
     process.exit(1);
@@ -160,4 +215,16 @@ for (const [dest, content] of contents) {
   console.log(`✓ → miniprogram/shared-logic/${dest}`);
 }
 
-console.log(`\nSynced ${MANIFEST.length} files @ upstream ${upstreamCommit.slice(0, 7)}`);
+let cjsCount = 0;
+for (const { src, file, transform, dirs } of CJS_VENDORS) {
+  const content = buildVendorContent(src, transform, upstreamCommit);
+  for (const dir of dirs) {
+    const cfDir = join(repoRoot, 'cloudfunctions', dir);
+    mkdirSync(cfDir, { recursive: true });
+    writeFileSync(join(cfDir, file), content);
+    console.log(`✓ → cloudfunctions/${dir}/${file} (CJS)`);
+    cjsCount++;
+  }
+}
+
+console.log(`\nSynced ${MANIFEST.length} ESM + ${cjsCount} CJS files @ upstream ${upstreamCommit.slice(0, 7)}`);

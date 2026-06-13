@@ -4,6 +4,7 @@
  * 解绑不开放（防战绩反复横跳）—— 绑错了找房主/管理员在控制台清 boundOpenid。
  */
 const cloud = require('wx-server-sdk');
+const { LADDER_BASE, seedLadderRating } = require('./ladderLogic.js');
 const https = require('https');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
@@ -26,7 +27,6 @@ function getJson(url) {
   });
 }
 
-const LADDER_BASE = 1000;
 
 function freshStats() {
   return {
@@ -51,20 +51,6 @@ function freshStats() {
   };
 }
 
-// 镜像 miniprogram/core/ladder.js seedLadderRating —— 改那边记得同步这里
-function seedLadderRating(webStats) {
-  const s = Math.max(0, Number(webStats && webStats.sessionsPlayed) || 0);
-  if (s <= 0) return LADDER_BASE;
-  const won = Math.min(s, Math.max(0, Number(webStats.sessionsWon) || 0));
-  const winRate = won / s;
-  const avgRank = Number(webStats.avgRankingPerSession);
-  const rankNorm = Number.isFinite(avgRank) && avgRank >= 1
-    ? (4.5 - Math.min(avgRank, 8)) / 3.5
-    : 0;
-  const conf = Math.min(s, 20) / 20;
-  const rating = Math.round(LADDER_BASE + conf * (250 * rankNorm + 300 * (winRate - 0.5)));
-  return Math.max(700, Math.min(1300, rating));
-}
 
 exports.main = async (event) => {
   const { OPENID } = cloud.getWXContext();

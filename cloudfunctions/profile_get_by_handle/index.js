@@ -8,12 +8,12 @@
  * 公开端点一律剥离（2026-06-12 review HIGH 修复）。
  */
 const cloud = require('wx-server-sdk');
+const { LADDER_BASE, seedLadderRating } = require('./ladderLogic.js');
 const https = require('https');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const WEB_BASE = 'https://gd.ax0x.ai';
-const LADDER_BASE = 1000;
 
 function getJson(url) {
   return new Promise((resolve, reject) => {
@@ -32,20 +32,6 @@ function getJson(url) {
   });
 }
 
-// 镜像 miniprogram/core/ladder.js seedLadderRating —— 改那边记得同步这里
-function seedLadderRating(webStats) {
-  const s = Math.max(0, Number(webStats && webStats.sessionsPlayed) || 0);
-  if (s <= 0) return LADDER_BASE;
-  const won = Math.min(s, Math.max(0, Number(webStats.sessionsWon) || 0));
-  const winRate = won / s;
-  const avgRank = Number(webStats.avgRankingPerSession);
-  const rankNorm = Number.isFinite(avgRank) && avgRank >= 1
-    ? (4.5 - Math.min(avgRank, 8)) / 3.5
-    : 0;
-  const conf = Math.min(s, 20) / 20;
-  const rating = Math.round(LADDER_BASE + conf * (250 * rankNorm + 300 * (winRate - 0.5)));
-  return Math.max(700, Math.min(1300, rating));
-}
 
 /**
  * web 全量战绩 → 档案 stats 形状（buildProfileVM 直接消费）。

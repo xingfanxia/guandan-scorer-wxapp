@@ -1,5 +1,5 @@
 // Vendored from guandan-scorer (web) — DO NOT EDIT HERE.
-// Upstream: shared/roomSnapshotValidation.js @ ba119979e8c2f37db2eb388d56e955f7c9ef7ccc
+// Upstream: shared/roomSnapshotValidation.js @ b5c6a6699cd1e743804a1a283cb33bf481e263cf
 // 改规则先改 web repo，再跑 npm run sync:shared 重新同步（见 CLAUDE.md）。
 import { getHistoryEntries, isClearingANote, resolveGameStatus } from './gameStatus.js';
 import { isValidRuleSettings } from './ruleConfig.js';
