@@ -1,3 +1,4 @@
+<import src="../../templates/profileExtras.wxml" />
 <view class="page {{themeClass}}">
 
   <view class="card empty" wx:if="{{loading}}">读取档案…</view>
@@ -56,6 +57,9 @@
         </view>
       </view>
     </view>
+
+    <!-- 队友与对手 / 近期排名走势 / 最近游戏（与玩家查询页共用模板） -->
+    <template is="profileExtras" data="{{relations, rankTrend, recentGames}}" />
   </block>
 
 </view>

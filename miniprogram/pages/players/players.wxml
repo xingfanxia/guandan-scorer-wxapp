@@ -1,3 +1,4 @@
+<import src="../../templates/profileExtras.wxml" />
 <view class="page {{themeClass}}">
 
   <view class="card empty" wx:if="{{loading}}">读取玩家池…</view>
@@ -80,6 +81,9 @@
         </view>
       </view>
     </view>
+
+    <!-- 队友与对手 / 近期排名走势 / 最近游戏（与档案页共用模板） -->
+    <template is="profileExtras" data="{{relations: detail.relations, rankTrend: detail.rankTrend, recentGames: detail.recentGames}}" />
 
     <!-- web 老战绩概要：已绑定玩家单列原始 web（上方综合战绩已并入）；
          未绑定且富战绩拉取失败时也回退到这 3 格概要（不编造富档案）。

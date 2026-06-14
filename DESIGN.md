@@ -118,5 +118,12 @@ font-family: -apple-system, "PingFang SC", "HarmonyOS Sans SC", "MiSans", sans-s
 
 - `miniprogram/styles/tokens.wxss` —— 本文件 §2-§4 在 WXSS 体系内的唯一实现处，`app.wxss` 首行 `@import`。
 - `theme.json` —— 仅窗口 chrome 变量。
-- **已知例外（文档化）**：`core/poster.js` 的 canvas 镜像常量（canvas 吃不到 CSS 变量，light 色板的逐值镜像）与 `pages/index/index.ts` 的 switch `color` 属性映射（WXML 属性不支持 var()）。改 tokens 时这两处必须同步。
-- 验收：grep 全部页面 WXSS，出现 `#` 色值或 `rgba(` 即违规（只允许出现在 tokens.wxss + 上述两个文档化例外）。
+- **已知例外（文档化）**：① `core/poster.js` 的 canvas 镜像常量（canvas 吃不到 CSS 变量，light 色板的逐值镜像）；② `pages/index/index.ts` 的 switch `color` 属性映射（WXML 属性不支持 var()）；③ `core/rankChart.js` 的 `RANK_CHART_THEME`（近期排名走势折线图，canvas，light/dark 双套实色镜像 §2 token）。改 tokens 时这三处必须同步。
+- 验收：grep 全部页面 WXSS，出现 `#` 色值或 `rgba(` 即违规（只允许出现在 tokens.wxss + 上述三个文档化例外）。
+
+## 11. 档案扩展区（队友与对手 / 近期排名走势 / 最近游戏，2026-06-14 加）
+
+- 对位 web `player-profile.html` 的「队友与对手」「近期排名走势」「最近游戏」三段，档案页（`pages/profile`）与玩家查询页（`pages/players`）共用模板 `templates/profileExtras.wxml`（一处定义两页 import）。
+- 派生纯函数在 `core/profileVM.js`（`buildRelations` / `buildRankTrend` / `buildRecentGames`，Node 可测，对位 web `renderPartnerRivalStats` 选择规则：队友按胜率降序取首/末，对手按胜率升序取首/末）。
+- **隐私**：`partners`/`opponents` 在云端解析成含 `name/emoji` 的 display-safe 数组，**绝不下发 openid**；走势/最近游戏只取名次数字、剥房间码。解析逻辑 vendored 双份 `cloudfunctions/{profile_get,profile_get_by_handle}/profileExtras.js`（canonical 在 profile_get_by_handle，改一处同步另一处；与 ladderLogic 同例）。
+- 折线图 canvas 在 `core/rankChart.js`（几何/绘制分层），主题色镜像见 §10 例外③。

@@ -1,7 +1,8 @@
 // 玩家天梯/查询页：池内全员列表（天梯榜序）→ 点开看任意玩家档案（web players.html 对位）
 import { buildProfileVM } from '../../core/profileVM.js';
 import { ACHIEVEMENT_COUNT } from '../../shared-logic/achievementLogic.js';
-import { applyTheme } from '../../core/theme.js';
+import { applyTheme, effectiveTheme, getThemePref } from '../../core/theme.js';
+import { rankChartGeometry, paintRankChart } from '../../core/rankChart.js';
 
 interface PoolRow {
   handle: string;
@@ -36,6 +37,10 @@ interface DetailVM {
   honorRows: Array<{ title: string; caption: string; count: number }>;
   achievementRows: Array<{ id: string; name: string; badge: string; desc: string }>;
   achievementTotal: number;
+  // 队友与对手 / 近期排名走势 / 最近游戏（profileExtras 模板共用）
+  relations: unknown;
+  rankTrend: null | { points: number[]; max: number };
+  recentGames: Array<{ seq: number; modeText: string; rankText: string; resultText: string; tone: string; honorsText: string }>;
 }
 
 Page({
@@ -50,6 +55,31 @@ Page({
   onShow() {
     applyTheme(this);
     this.fetchList();
+    // 详情在屏时（如切后台再回）按当前主题重绘走势图
+    if (this.data.detail && this.data.detail.rankTrend) this.drawRankChart();
+  },
+
+  /** 画近期排名走势（canvas 须在节点上屏后绘制 —— setData 回调里调） */
+  drawRankChart() {
+    const detail = this.data.detail;
+    const trend = detail && detail.rankTrend;
+    if (!trend || !trend.points || trend.points.length === 0) return;
+    this.createSelectorQuery()
+      .select('#rankChart')
+      .fields({ node: true, size: true })
+      .exec((res) => {
+        const node = res && res[0] && res[0].node;
+        if (!node) return;
+        const w = res[0].width;
+        const h = res[0].height;
+        const dpr = Math.min((wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()).pixelRatio || 2, 3);
+        node.width = w * dpr;
+        node.height = h * dpr;
+        const ctx = node.getContext('2d');
+        ctx.scale(dpr, dpr);
+        const geo = rankChartGeometry(trend.points, trend.max, w, h);
+        paintRankChart(ctx, geo, w, h, effectiveTheme(getThemePref()));
+      });
   },
 
   fetchList() {
@@ -123,9 +153,12 @@ Page({
           statCells: vm ? vm.statCells : [],
           honorRows: vm ? vm.honorRows : [],
           achievementRows: vm ? vm.achievementRows : [],
-          achievementTotal: ACHIEVEMENT_COUNT
+          achievementTotal: ACHIEVEMENT_COUNT,
+          relations: vm ? vm.relations : null,
+          rankTrend: vm ? vm.rankTrend : null,
+          recentGames: vm ? vm.recentGames : []
         }
-      });
+      }, () => this.drawRankChart());
     }).catch(() => {
       this.setData({ detailLoading: false });
       wx.showToast({ title: '档案读取失败', icon: 'none' });

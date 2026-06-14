@@ -487,18 +487,42 @@ Page({
       editable: true,
       placeholderText: '名字（≤4字更清楚）',
       success: (res) => {
-        if (!res.confirm || !res.content) return;
+        if (!res.confirm) return;
+        const name = String(res.content || '').trim();
+        if (!name) return;
         const store = getStore();
         const used = store.getState().players.length;
-        const add = store.addPlayer({
-          name: res.content,
-          emoji: EMOJI_POOL[used % EMOJI_POOL.length],
-          team
-        });
-        if (!add.ok) wx.showToast({ title: add.msg || '加不进去', icon: 'none' });
-        this.refresh();
+        const emoji = EMOJI_POOL[used % EMOJI_POOL.length];
+        // 先存入玩家池（pool_add）拿到 handle，再带 handle 加进本局 —— 新建玩家从此进 DB、
+        // 进天梯榜、可被复用/绑定。云端不可达则降级仅加本局并提示（不挡线下计分）。
+        this.persistAndAddManual(name, emoji, team);
       }
     });
+  },
+
+  /** 手动新建玩家：pool_add 入池拿 handle → 带 handle 加本局；失败降级本地加 + 提示 */
+  async persistAndAddManual(name: string, emoji: string, team: 1 | 2) {
+    const store = getStore();
+    let handle = '';
+    let persisted = false;
+    try {
+      const res = await Promise.race([
+        wx.cloud.callFunction({ name: 'pool_add', data: { displayName: name, emoji } }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('pool_add timeout')), 3500))
+      ]);
+      const r = ((res as { result?: unknown }).result || {}) as { ok: boolean; handle?: string };
+      if (r.ok && r.handle) { handle = r.handle; persisted = true; }
+    } catch { /* 离线/超时：降级本地加 */ }
+
+    const add = store.addPlayer(handle ? { name, emoji, team, handle } : { name, emoji, team });
+    if (!add.ok) { wx.showToast({ title: add.msg || '加不进去', icon: 'none' }); return; }
+    if (persisted) {
+      this.poolCache = null; // 新玩家入池 → 失效缓存，下次选人能看到
+      wx.showToast({ title: '已加入并存进玩家池', icon: 'none' });
+    } else {
+      wx.showToast({ title: '已加入本局 · 网络问题未能存入玩家池', icon: 'none' });
+    }
+    this.refresh();
   },
 
   onEditPlayer(e: WechatMiniprogram.TouchEvent) {

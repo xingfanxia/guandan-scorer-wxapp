@@ -218,3 +218,201 @@ page {
   color: var(--text-secondary);
   font-size: var(--font-body);
 }
+
+/* ===== 队友与对手（profile / players 共用，templates/profileExtras.wxml） ===== */
+
+.rels {
+  display: flex;
+  gap: var(--s3);
+}
+
+.rels__col {
+  flex: 1;
+  min-width: 0;
+}
+
+.rels__coltitle {
+  font-size: var(--font-label);
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 1rpx;
+  margin-bottom: var(--s2);
+}
+
+.rels__empty {
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+}
+
+.relrow {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--s2);
+}
+
+.relrow__emoji {
+  font-size: 40rpx;
+  margin-right: var(--s2);
+}
+
+.relrow__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.relrow__name {
+  display: block;
+  font-size: var(--font-body);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.relrow__label {
+  display: block;
+  font-size: 22rpx;
+  color: var(--text-secondary);
+}
+
+.relrow__barwrap {
+  width: 150rpx;
+  flex: none;
+  text-align: right;
+}
+
+.relrow__pct {
+  font-size: var(--font-label);
+  font-weight: 700;
+  font-feature-settings: "tnum";
+}
+
+.relrow__bar {
+  height: 8rpx;
+  margin-top: 6rpx;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.relrow__fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+}
+
+.relrow__fill--win { background: var(--accent); }
+.relrow__fill--loss { background: var(--danger); }
+
+.rels__alltitle {
+  margin-top: var(--s4);
+  margin-bottom: var(--s2);
+  font-size: var(--font-label);
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 1rpx;
+}
+
+.relbar {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--s2);
+}
+
+.relbar__name {
+  width: 180rpx;
+  flex: none;
+  font-size: var(--font-label);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.relbar__track {
+  flex: 1;
+  height: 16rpx;
+  margin: 0 var(--s2);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.relbar__fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+}
+
+.relbar__fill--win { background: var(--accent); }
+.relbar__fill--mid { background: var(--team-t1); }
+.relbar__fill--loss { background: var(--danger); }
+
+.relbar__pct {
+  width: 80rpx;
+  flex: none;
+  text-align: right;
+  font-size: var(--font-label);
+  font-weight: 700;
+  font-feature-settings: "tnum";
+}
+
+/* ===== 近期排名走势 canvas ===== */
+
+.rankchart {
+  width: 100%;
+  height: 360rpx;
+  display: block;
+}
+
+.rankchart__hint {
+  display: block;
+  margin-top: var(--s1);
+  font-size: 22rpx;
+  color: var(--text-secondary);
+}
+
+/* ===== 最近游戏 ===== */
+
+.rg {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--s2);
+}
+
+.rg__res {
+  width: 48rpx;
+  height: 48rpx;
+  flex: none;
+  border-radius: var(--radius-pill);
+  margin-right: var(--s3);
+  text-align: center;
+  line-height: 48rpx;
+  font-size: var(--font-label);
+  font-weight: 700;
+  color: var(--on-accent);
+}
+
+.rg__res--win { background: var(--accent); }
+.rg__res--loss { background: var(--danger); }
+
+.rg__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.rg__line {
+  display: block;
+  font-size: var(--font-body);
+  font-feature-settings: "tnum";
+}
+
+.rg__honors {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 22rpx;
+  color: var(--gold-a);
+}
+
+.rg__date {
+  font-size: 22rpx;
+  color: var(--text-secondary);
+  font-feature-settings: "tnum";
+}
