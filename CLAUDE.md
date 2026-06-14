@@ -6,7 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 掼蛋计分助手 — 微信小程序版的掼蛋（Guandan）计分器。是 `~/projects/side-projects/guandan-scorer`（web 版，Vercel + KV）的 sibling repo，**不是 fork**：infra 与 web 版零重叠（原生小程序 + 微信云开发），只共享纯游戏逻辑。
 
-**当前状态（2026-06-13）：WXAPP-2~5、WXAPP-8、WXAPP-9 代码侧完成 + 多轮用户反馈修复**（分支 wxapp-2-scoring-loop，main 已全对齐 `50e57b7`）——单机计分闭环、云房间围观（watch+轮询）、投票/座位认领/档案、长图海报（web 手机版对位）、玩家池与 web 数据迁移、天梯分（简化 ELO + 起评分；**校准门按历史总场次 web+小程序合计 <3 才待校准沉底，老牌友凭 web 历史直接进榜**；算法已收敛为单一 vendor 源 `shared/ladderLogic.js`，见下「游戏逻辑」节天梯特例）、玩家天梯查询页（**未绑定玩家也实时拉 web 全量战绩出完整档案：荣誉+成就+战绩格**）。13 个云函数全部部署 live（含自限管理函数 `pool_prune` 删 test_ 玩家）。**外观开关**：首页「模式与规则」卡底部三段控件（跟随系统/浅色/深色）可手动覆盖系统主题（机制见 DESIGN.md §1）。体验版 **1.0.4** 已上传，云端=repo=体验版三者一致。剩余人工步骤见「人工清单」（rooms 权限、认证、选体验版、体验成员、真机 QA）。
+**当前状态（2026-06-14）：核心闭环 + 档案对齐 web 三段 + 三个用户问题修复（代码侧完成，部分待部署）**（分支 wxapp-2-scoring-loop HEAD `32cd84d`，main 待对齐）——单机计分闭环、云房间围观（watch+轮询）、投票/座位认领/档案、长图海报（web 手机版对位）、玩家池与 web 数据迁移、天梯分（简化 ELO + 起评分；**校准门按历史总场次 web+小程序合计 <3 才待校准沉底**；单一 vendor 源 `shared/ladderLogic.js`）、玩家天梯查询页、**外观开关**（首页三段控件覆盖系统主题，机制见 DESIGN.md §1）。
+
+**2026-06-14 新增（gap 审计 + 用户报告，见 docs/PLAN.md 2026-06-14 条 + DESIGN.md §11）**：
+- **档案对齐 web 三段**：队友与对手（最佳/最弱队友、最强/最弱对手 + 全列表胜率条）、近期排名走势（canvas 折线）、最近游戏。两页共用 `templates/profileExtras.wxml`；派生纯函数在 `core/profileVM.js`，折线图 `core/rankChart.js`；云端 `profileExtras.js`（vendored 双份）解析 partners/opponents 成 display-safe 数组（**不下发 openid**）。
+- **bug 修复**：手动输入新建玩家没进 DB → 新增 `pool_add` 云函数落 pool。`pool_prune` 加 `scanTest` 自清模式。
+- **一个微信只绑一个玩家**：未绑过则首次创建即绑 + 一次确认（pool_add 回 callerBound，复用 pool_bind）。
+- **战绩入库管理员审核队列**（防房主伪造）：非管理员入库进 `pending_sessions`，管理员（`admins` 集合，口令认领）在 `pages/admin` 审批；`profile_sync` 外科加 approveId 分支（apply 核心不动）；新增 `admin` 云函数。
+
+云函数 15 个（+`pool_add` +`admin`）。**已部署 live**：profile_get / profile_get_by_handle / pool_add(v2 基础)。**待部署（云会话漂移阻塞，同 task#24）**：pool_add(修) / pool_prune(scanTest) / profile_sync(队列) / admin —— 部署后批量补 + 清遗留 test 池玩家 + 上传新客户端 + 真机验证（见「人工清单」#1）。体验版仍 **1.0.4**（新客户端待云函数部署后再传，避免半成品）。**注意**：客户端新功能（admin 页/审核队列/auto-bind 确认）在云函数部署前 dormant/降级。
 
 ## 账号与环境（2026-06-12 注册完成）
 
