@@ -500,18 +500,20 @@ Page({
     });
   },
 
-  /** 手动新建玩家：pool_add 入池拿 handle → 带 handle 加本局；失败降级本地加 + 提示 */
+  /** 手动新建玩家：pool_add 入池拿 handle → 带 handle 加本局；失败降级本地加 + 提示。
+      若调用者还没绑过玩家，建完弹一次「这是你本人吗」确认绑定（一个微信只绑一个，不可逆）。 */
   async persistAndAddManual(name: string, emoji: string, team: 1 | 2) {
     const store = getStore();
     let handle = '';
     let persisted = false;
+    let callerBound = true; // 取不到信息时按已绑处理（不弹绑定确认，保守）
     try {
       const res = await Promise.race([
         wx.cloud.callFunction({ name: 'pool_add', data: { displayName: name, emoji } }),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('pool_add timeout')), 3500))
       ]);
-      const r = ((res as { result?: unknown }).result || {}) as { ok: boolean; handle?: string };
-      if (r.ok && r.handle) { handle = r.handle; persisted = true; }
+      const r = ((res as { result?: unknown }).result || {}) as { ok: boolean; handle?: string; callerBound?: boolean };
+      if (r.ok && r.handle) { handle = r.handle; persisted = true; callerBound = r.callerBound !== false; }
     } catch { /* 离线/超时：降级本地加 */ }
 
     const add = store.addPlayer(handle ? { name, emoji, team, handle } : { name, emoji, team });
@@ -519,10 +521,29 @@ Page({
     if (persisted) {
       this.poolCache = null; // 新玩家入池 → 失效缓存，下次选人能看到
       wx.showToast({ title: '已加入并存进玩家池', icon: 'none' });
+      // 未绑过 → 问是否把这个玩家设为本人档案（首次创建即绑 + 一次确认）
+      if (!callerBound && handle) this.offerBindSelf(handle, name);
     } else {
       wx.showToast({ title: '已加入本局 · 网络问题未能存入玩家池', icon: 'none' });
     }
     this.refresh();
+  },
+
+  /** 未绑微信首次创建玩家 → 确认是否绑定为本人（绑后战绩归己，一个微信只能绑一个，不可逆） */
+  offerBindSelf(handle: string, name: string) {
+    wx.showModal({
+      title: '这个玩家是你本人吗？',
+      content: `确认后「${name}」成为你的本人档案，战绩算到你名下。每个微信只能绑一个玩家，且绑定后不可更改。`,
+      confirmText: '是我，绑定',
+      cancelText: '只是牌友',
+      success: (m) => {
+        if (!m.confirm) return;
+        wx.cloud.callFunction({ name: 'pool_bind', data: { handle } }).then((res) => {
+          const r = ((res as { result?: unknown }).result || {}) as { ok: boolean; message?: string };
+          wx.showToast({ title: r.ok ? '已绑定为你本人' : (r.message || '绑定失败'), icon: 'none' });
+        }).catch(() => wx.showToast({ title: '绑定失败，检查网络', icon: 'none' }));
+      }
+    });
   },
 
   onEditPlayer(e: WechatMiniprogram.TouchEvent) {

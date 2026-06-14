@@ -39,12 +39,19 @@ exports.main = async (event) => {
     await db.createCollection('pool');
   } catch (err) { /* 已存在 */ }
 
+  // 调用者是否已绑过玩家（一个微信只绑一个）—— 回传给前端决定是否弹「这是你本人吗」确认
+  let callerBound = false;
+  try {
+    const mine = await db.collection('pool').where({ boundOpenid: OPENID }).limit(1).get();
+    callerBound = !!(mine && mine.data && mine.data.length > 0);
+  } catch (err) { /* 查询失败按未绑处理 */ }
+
   // 去重：同名（trim 后精确匹配）复用，不再新建。朋友局同名即同人。
   try {
     const dup = await db.collection('pool').where({ displayName }).limit(1).get();
     if (dup && dup.data && dup.data.length > 0) {
       const d = dup.data[0];
-      return { ok: true, handle: d.handle, displayName: d.displayName, emoji: d.emoji, created: false, reused: true };
+      return { ok: true, handle: d.handle, displayName: d.displayName, emoji: d.emoji, created: false, reused: true, callerBound };
     }
   } catch (err) { /* 查询失败不阻塞新建 */ }
 
@@ -72,5 +79,5 @@ exports.main = async (event) => {
     return { ok: false, error: 'db_error', detail: String((err && err.errMsg) || err) };
   }
 
-  return { ok: true, handle, displayName, emoji, created: true };
+  return { ok: true, handle, displayName, emoji, created: true, callerBound };
 };
