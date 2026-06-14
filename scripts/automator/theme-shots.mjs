@@ -48,6 +48,8 @@ try {
     await step(mp.evaluate((p) => {
       const pages = getCurrentPages();
       pages[pages.length - 1].onThemePick({ currentTarget: { dataset: { pref: p } } });
+      // 滚到「模式与规则」卡，让普通 <text> 标签（继承色）入镜 —— 这正是反色 bug 的命中点
+      wx.pageScrollTo({ scrollTop: 360, duration: 0 });
     }, pref), 'pick ' + pref);
     await page.waitFor(500);
     return step(page.data('themeClass'), 'read themeClass');

@@ -15,7 +15,7 @@
 - `app.json`: `"darkmode": true`；窗口/导航 chrome 色走 `theme.json` 变量（`@navBgColor` 等）。
 - 页面内容色走 **WXSS 自定义属性**：`page { --token: ... }` 定义 light 值，`@media (prefers-color-scheme: dark) { page { --token: ... } }` 覆盖 dark 值。
 - **铁律**：组件 WXSS 只许引用语义 token（`var(--text-primary)`），禁止硬编码色值/直接引用基础色板。
-- **手动外观开关（auto / light / dark，2026-06-13 加）**：首页「模式与规则」卡底部「深色外观」段控件让用户固定主题、覆盖系统。机制 = `core/theme.js` 把 `theme--light` / `theme--dark` 类挂到各页 `.page` 根节点，token 在 `.page` 作用域重定义（`tokens.wxss` 的 `.page.theme--*` 块，class 特异性盖过 `@media`）；同时 `wx.setNavigationBarColor` 同步原生导航栏（chrome 吃不到 WXSS）。auto 不挂类、走 `@media` 跟随系统。偏好存本地 storage（`themePref`）。约束：① 色值同步 **4 处**（`page{}` / `@media page{}` / `.page.theme--light` / `.page.theme--dark`，WXSS 无变量复用）；② `.page` 须自绘 `min-height:100vh; background:var(--bg)` 盖住身后系统主题的 `page{}` 元素；③ 各页 `onShow` 调 `applyTheme(this)`，新页务必照做；④ `index.ts` 的 `accentColor`（switch 组件属性，吃不到 var）按 `effectiveTheme()` 同步，非系统主题。
+- **手动外观开关（auto / light / dark，2026-06-13 加）**：首页「模式与规则」卡底部「深色外观」段控件让用户固定主题、覆盖系统。机制 = `core/theme.js` 把 `theme--light` / `theme--dark` 类挂到各页 `.page` 根节点，token 在 `.page` 作用域重定义（`tokens.wxss` 的 `.page.theme--*` 块，class 特异性盖过 `@media`）；同时 `wx.setNavigationBarColor` 同步原生导航栏（chrome 吃不到 WXSS）。auto 不挂类、走 `@media` 跟随系统。偏好存本地 storage（`themePref`）。约束：① 色值同步 **4 处**（`page{}` / `@media page{}` / `.page.theme--light` / `.page.theme--dark`，WXSS 无变量复用）；② `.page` 须自绘 `min-height:100vh; background:var(--bg)` 盖住身后系统主题的 `page{}` 元素，**且必须 `color:var(--text-primary)`** —— 否则普通 `<text>` 继承的是 `page{}` 元素按系统 @media 算好的 color，手动覆盖时与背景反色（文字看不清）；放在 `.page` 才在覆盖后的 token 上重算；③ 各页 `onShow` 调 `applyTheme(this)`，新页务必照做；④ `index.ts` 的 `accentColor`（switch 组件属性，吃不到 var）按 `effectiveTheme()` 同步，非系统主题。
 
 ## 2. 色板
 

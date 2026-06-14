@@ -13,6 +13,10 @@ page {
   min-height: 100vh;
   box-sizing: border-box;
   background: var(--bg);
+  /* 关键：默认文字色必须在 .page 作用域解析 —— 否则普通 <text> 继承 page{} 元素上
+     按系统 @media 算好的 color（手动覆盖时与背景反色 → 看不清）。.page 带 theme-- 类时
+     这里的 var() 在覆盖后的 token 上重算，继承色才跟着主题走。 */
+  color: var(--text-primary);
   padding: var(--gutter);
 }
 
