@@ -45,6 +45,10 @@ Page({
     this.fetchProfile();
   },
 
+  goAdmin() {
+    wx.navigateTo({ url: '/pages/admin/admin' });
+  },
+
   /** 画近期排名走势（canvas 渲染须在节点上屏后，故 setData 回调里调） */
   drawRankChart() {
     const trend = this.data.rankTrend;

@@ -62,4 +62,7 @@
     <template is="profileExtras" data="{{relations, rankTrend, recentGames}}" />
   </block>
 
+  <!-- 管理入口（战绩审核后台；页面内按口令认领，非管理员进去也只看到认领框） -->
+  <view class="admin-entry" bindtap="goAdmin">⚙︎ 战绩审核</view>
+
 </view>

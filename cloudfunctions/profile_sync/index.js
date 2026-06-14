@@ -157,18 +157,47 @@ async function loadPlayerDoc(db, openid) {
   }
 }
 
+/** 管理员判定：admins 集合 doc(openid) 存在即是。集合不存在/无 doc → 非管理员（安全默认） */
+async function isAdmin(db, openid) {
+  if (!openid) return false;
+  try {
+    const r = await db.collection('admins').doc(openid).get();
+    return !!(r && r.data);
+  } catch (err) {
+    return false;
+  }
+}
+
 exports.main = async (event) => {
   const { OPENID } = cloud.getWXContext();
   if (!OPENID) return { ok: false, error: 'no_openid' };
 
-  const code = String((event && event.code) || '').trim().toUpperCase();
-  if (!/^[A-Z][0-9A-Z]{5}$/.test(code)) return { ok: false, error: 'invalid_code' };
-
   const db = cloud.database();
   const _ = db.command;
+  const callerIsAdmin = await isAdmin(db, OPENID);
+
+  // 审核队列（防房主伪造自家战绩）：非管理员的入库进 pending_sessions，管理员审批后才真正 apply。
+  // approveId = 管理员审批一条 pending —— 绕开房主闸，用 pending 里的 code+sessions 重跑同一套 apply。
+  const approveId = String((event && event.approveId) || '');
+  const approveMode = !!approveId;
+  let pendingDoc = null;
+  if (approveMode) {
+    if (!callerIsAdmin) return { ok: false, error: 'not_admin' };
+    const pd = await db.collection('pending_sessions').doc(approveId).get().catch(() => null);
+    if (!pd || !pd.data) return { ok: false, error: 'pending_not_found' };
+    if (pd.data.status && pd.data.status !== 'pending') return { ok: true, already: true };
+    pendingDoc = pd.data;
+  }
+
+  const code = approveMode
+    ? String((pendingDoc && pendingDoc.code) || '')
+    : String((event && event.code) || '').trim().toUpperCase();
+  if (!/^[A-Z][0-9A-Z]{5}$/.test(code)) return { ok: false, error: 'invalid_code' };
+
   const room = await db.collection('rooms').doc(code).get().catch(() => null);
   if (!room || !room.data) return { ok: false, error: 'room_not_found' };
-  if (room.data.ownerOpenid !== OPENID) return { ok: false, error: 'not_owner' };
+  // 房主闸：普通入库须本人是房主；审批模式由管理员代跑，跳过（已验过 admin）
+  if (!approveMode && room.data.ownerOpenid !== OPENID) return { ok: false, error: 'not_owner' };
 
   const snapshot = room.data.snapshot || {};
   const keys = deriveKeys(code, snapshot, Number(room.data.voteEpoch || 0));
@@ -223,7 +252,28 @@ exports.main = async (event) => {
   }
 
   const authoritativeMode = ['4', '6', '8'].includes(String(snapshot.mode)) ? String(snapshot.mode) : '4';
-  const sessions = (Array.isArray(event.sessions) ? event.sessions.slice(0, 16) : [])
+
+  // 非管理员、非审批模式 → 入审核队列，不直接 apply（房主可伪造自家战绩，故需管理员把关）。
+  // 存原始 event.sessions + code，审批时由管理员重跑（重新从房间解析归属，gameKey 幂等防重复入库）。
+  if (!approveMode && !callerIsAdmin) {
+    const rawSessions = Array.isArray(event.sessions) ? event.sessions.slice(0, 16) : [];
+    const names = snapshotPlayers.filter(p => p && p.handle).map(p => p.name).slice(0, 12).join('、');
+    await db.collection('pending_sessions').add({
+      data: {
+        code,
+        sessions: rawSessions,
+        submitterOpenid: OPENID,
+        mode: authoritativeMode,
+        summary: `房间 ${code} · ${authoritativeMode}人 · ${openidByPlayerId.size} 人可归属${names ? ' · ' + names : ''}`,
+        status: 'pending',
+        createdAt: db.serverDate()
+      }
+    });
+    return { ok: true, pending: true, message: '已提交，等管理员审核后入库' };
+  }
+
+  const eventSessions = approveMode ? (pendingDoc && pendingDoc.sessions) : event.sessions;
+  const sessions = (Array.isArray(eventSessions) ? eventSessions.slice(0, 16) : [])
     .filter(s => s && openidByPlayerId.has(Number(s.playerId)));
 
   // 票数服务端自取：votes 集合按 voteKey 聚合，playerId → openid 经归属表映射
@@ -342,10 +392,16 @@ exports.main = async (event) => {
         });
       }
     }
+    // 审批模式：apply 成功后把 pending 标记为已批（幂等：gameKey 已挡重复入库）
+    if (approveMode) {
+      await db.collection('pending_sessions').doc(approveId)
+        .update({ data: { status: 'approved', approvedBy: OPENID, approvedAt: db.serverDate() } })
+        .catch(() => {});
+    }
   } catch (err) {
     console.error('profile_sync failed:', err);
     return { ok: false, error: 'db_error', detail: String((err && err.errMsg) || err) };
   }
 
-  return { ok: true, applied, skipped, players: touched.size };
+  return { ok: true, applied, skipped, players: touched.size, approved: approveMode };
 };

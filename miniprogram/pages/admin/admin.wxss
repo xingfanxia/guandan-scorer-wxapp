@@ -1,0 +1,56 @@
+.admin__hint {
+  display: block;
+  font-size: var(--font-label);
+  color: var(--text-secondary);
+  margin: var(--s2) 0;
+}
+
+.admin__input {
+  height: var(--touch-bar);
+  padding: 0 var(--s3);
+  margin: var(--s2) 0;
+  border: 1rpx solid var(--hairline);
+  border-radius: var(--radius-control);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-size: var(--font-body);
+}
+
+.admin__btn {
+  margin-top: var(--s2);
+}
+
+.pend {
+  display: flex;
+  align-items: center;
+  padding: var(--s2) 0;
+  border-bottom: 1rpx solid var(--hairline);
+}
+
+.pend__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.pend__summary {
+  display: block;
+  font-size: var(--font-body);
+}
+
+.pend__time {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 22rpx;
+  color: var(--text-secondary);
+  font-feature-settings: "tnum";
+}
+
+.pend__ops {
+  display: flex;
+  flex: none;
+  gap: var(--s2);
+}
+
+.pend__ok, .pend__no {
+  margin: 0;
+}

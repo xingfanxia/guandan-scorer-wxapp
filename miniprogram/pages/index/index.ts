@@ -185,8 +185,11 @@ Page({
         data: { code, sessions }
       });
       wx.hideLoading();
-      const r = (syncRes.result || {}) as { ok: boolean; applied?: number; message?: string };
-      if (r.ok) {
+      const r = (syncRes.result || {}) as { ok: boolean; applied?: number; pending?: boolean; message?: string };
+      if (r.ok && r.pending) {
+        // 非管理员：进审核队列，等管理员通过后才入库（防伪造）
+        wx.showModal({ title: '已提交，等待审核', content: r.message || '战绩已提交，管理员审核通过后才入库。', showCancel: false, confirmText: '知道了' });
+      } else if (r.ok) {
         wx.showToast({
           title: r.applied ? `已入库 ${sessions.length} 人战绩` : '本场已入过库（幂等跳过）',
           icon: 'none'
