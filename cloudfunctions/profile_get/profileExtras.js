@@ -76,6 +76,39 @@ function recentGamesFromWeb(recentGames) {
   }));
 }
 
+/**
+ * 合并 web + wx 两侧的关系数组（绑定玩家：web 历史 + 小程序新局）。
+ * 按 handle 归并（无 handle 回退按 name），games/wins 相加后重算 winRate。
+ * 队友既出现在 web 又出现在 wx 时不重复计 —— 同一 handle 累加。
+ */
+function mergeRelations(a, b) {
+  const map = new Map();
+  for (const r of [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])]) {
+    if (!r) continue;
+    const key = (r.handle && String(r.handle).toLowerCase()) || ('name:' + (r.name || ''));
+    const cur = map.get(key) || { name: r.name, emoji: r.emoji, handle: r.handle, games: 0, wins: 0 };
+    cur.games += num(r.games);
+    cur.wins += num(r.wins);
+    if (!cur.name && r.name) cur.name = r.name;
+    if ((!cur.emoji || cur.emoji === '🙂') && r.emoji) cur.emoji = r.emoji;
+    if (!cur.handle && r.handle) cur.handle = r.handle;
+    map.set(key, cur);
+  }
+  return [...map.values()].map((r) => ({ ...r, winRate: r.games > 0 ? r.wins / r.games : 0 }));
+}
+
+/** 合并走势：web 旧局在前、wx 新局在后（两侧都旧→新）→ 取最近 N（旧→新） */
+function mergeTrend(webTrend, wxTrend) {
+  const merged = [...(Array.isArray(webTrend) ? webTrend : []), ...(Array.isArray(wxTrend) ? wxTrend : [])];
+  return merged.slice(-TREND_LIMIT);
+}
+
+/** 合并最近游戏：wx 新局在前、web 旧局在后（两侧都新→旧）→ 取最近 N（新→旧） */
+function mergeRecentGames(webGames, wxGames) {
+  const merged = [...(Array.isArray(wxGames) ? wxGames : []), ...(Array.isArray(webGames) ? webGames : [])];
+  return merged.slice(0, GAMES_LIMIT);
+}
+
 /** 收集关系图全部 key（openid 或 handle），去重 + 限量（控制 in 查询规模） */
 function relationKeys(partners, opponents) {
   const set = new Set();
@@ -91,5 +124,8 @@ module.exports = {
   rankTrendFromWeb,
   recentGamesFromSessions,
   recentGamesFromWeb,
+  mergeRelations,
+  mergeTrend,
+  mergeRecentGames,
   relationKeys
 };

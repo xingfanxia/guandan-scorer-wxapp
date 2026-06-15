@@ -11,7 +11,8 @@ const cloud = require('wx-server-sdk');
 const { LADDER_BASE, seedLadderRating } = require('./ladderLogic.js');
 const {
   relationsFromMap, rankTrendFromSessions, rankTrendFromWeb,
-  recentGamesFromSessions, recentGamesFromWeb, relationKeys
+  recentGamesFromSessions, recentGamesFromWeb,
+  mergeRelations, mergeTrend, mergeRecentGames, relationKeys
 } = require('./profileExtras.js');
 const https = require('https');
 
@@ -131,18 +132,39 @@ exports.main = async (event) => {
     if (doc && doc.data) {
       const raw = doc.data.stats || {};
       const stats = publicStats(raw);
-      // 队友/对手以**别人的** openid 为 key → 经 pool 反查显示名后下发（无 openid）；
-      // 走势/最近游戏从 sessionHistory 取数字摘要（剥房间码）。
+      // 绑定玩家 = web 历史 + 小程序新局。早先只取 wx 侧 → 队友/走势/最近几乎全空
+      // （绑定只并了 web 聚合，关系/走势/最近没并）。这里把 web 那侧也拉来合并，绑定从此富而非空。
       if (stats) {
-        const keys = relationKeys(raw.partners, raw.opponents);
-        const nameByOpenid = await resolveByOpenids(db, keys);
-        const resolve = (k) => nameByOpenid.get(k) || null;
+        // wx 侧：队友/对手以别人的 openid 为 key → pool 反查显示名（无 openid 下发）
+        const wxKeys = relationKeys(raw.partners, raw.opponents);
+        const nameByOpenid = await resolveByOpenids(db, wxKeys);
+        const wxResolve = (k) => nameByOpenid.get(k) || null;
+        const wxPartners = relationsFromMap(raw.partners, wxResolve);
+        const wxOpponents = relationsFromMap(raw.opponents, wxResolve);
+        const wxTrend = rankTrendFromSessions(raw.sessionHistory);
+        const wxGames = recentGamesFromSessions(raw.sessionHistory);
+        // web 侧：绑定玩家的 pool handle 即其 web handle → 实时拉全量 web 战绩
+        let webPartners = [], webOpponents = [], webTrend = [], webGames = [];
+        try {
+          const detail = await getJson(`${WEB_BASE}/api/players/${encodeURIComponent(handle)}`);
+          const node = detail && (detail.player || detail);
+          const ws = (node && node.stats) || {};
+          const webKeys = relationKeys(ws.partners, ws.opponents);
+          const nameByHandle = await resolveByHandles(db, webKeys);
+          const webResolve = (h) => nameByHandle.get(h) || { name: h, emoji: '🙂', handle: h };
+          webPartners = relationsFromMap(ws.partners, webResolve);
+          webOpponents = relationsFromMap(ws.opponents, webResolve);
+          webTrend = rankTrendFromWeb(ws.recentRankings);
+          webGames = recentGamesFromWeb(node && node.recentGames);
+        } catch (err) {
+          console.error('bound profile web merge fetch failed:', String((err && err.message) || err));
+        }
         stats.relations = {
-          partners: relationsFromMap(raw.partners, resolve),
-          opponents: relationsFromMap(raw.opponents, resolve)
+          partners: mergeRelations(webPartners, wxPartners),
+          opponents: mergeRelations(webOpponents, wxOpponents)
         };
-        stats.rankTrend = rankTrendFromSessions(raw.sessionHistory);
-        stats.recentGames = recentGamesFromSessions(raw.sessionHistory);
+        stats.rankTrend = mergeTrend(webTrend, wxTrend);
+        stats.recentGames = mergeRecentGames(webGames, wxGames);
       }
       profile = {
         displayName: doc.data.displayName || '',
