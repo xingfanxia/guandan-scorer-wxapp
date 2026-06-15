@@ -6,15 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 掼蛋计分助手 — 微信小程序版的掼蛋（Guandan）计分器。是 `~/projects/side-projects/guandan-scorer`（web 版，Vercel + KV）的 sibling repo，**不是 fork**：infra 与 web 版零重叠（原生小程序 + 微信云开发），只共享纯游戏逻辑。
 
-**当前状态（2026-06-14）：核心闭环 + 档案对齐 web 三段 + 三个用户问题修复（代码侧完成，部分待部署）**（分支 wxapp-2-scoring-loop HEAD `32cd84d`，main 待对齐）——单机计分闭环、云房间围观（watch+轮询）、投票/座位认领/档案、长图海报（web 手机版对位）、玩家池与 web 数据迁移、天梯分（简化 ELO + 起评分；**校准门按历史总场次 web+小程序合计 <3 才待校准沉底**；单一 vendor 源 `shared/ladderLogic.js`）、玩家天梯查询页、**外观开关**（首页三段控件覆盖系统主题，机制见 DESIGN.md §1）。
+**当前状态（2026-06-14）：核心闭环 + 档案对齐 web 三段 + 四个用户问题修复（全部署上线）**（分支 wxapp-2-scoring-loop，main 对齐 `c8ba911`）——单机计分闭环、云房间围观（watch+轮询）、投票/座位认领/档案、长图海报（web 手机版对位）、玩家池与 web 数据迁移、天梯分（简化 ELO + 起评分；**校准门按历史总场次 web+小程序合计 <3 才待校准沉底**；单一 vendor 源 `shared/ladderLogic.js`）、玩家天梯查询页、**外观开关**（首页三段控件覆盖系统主题，机制见 DESIGN.md §1）。
 
 **2026-06-14 新增（gap 审计 + 用户报告，见 docs/PLAN.md 2026-06-14 条 + DESIGN.md §11）**：
 - **档案对齐 web 三段**：队友与对手（最佳/最弱队友、最强/最弱对手 + 全列表胜率条）、近期排名走势（canvas 折线）、最近游戏。两页共用 `templates/profileExtras.wxml`；派生纯函数在 `core/profileVM.js`，折线图 `core/rankChart.js`；云端 `profileExtras.js`（vendored 双份）解析 partners/opponents 成 display-safe 数组（**不下发 openid**）。
 - **bug 修复**：手动输入新建玩家没进 DB → 新增 `pool_add` 云函数落 pool。`pool_prune` 加 `scanTest` 自清模式。
 - **一个微信只绑一个玩家**：未绑过则首次创建即绑 + 一次确认（pool_add 回 callerBound，复用 pool_bind）。
 - **战绩入库管理员审核队列**（防房主伪造）：非管理员入库进 `pending_sessions`，管理员（`admins` 集合，口令认领）在 `pages/admin` 审批；`profile_sync` 外科加 approveId 分支（apply 核心不动）；新增 `admin` 云函数。
+- **绑定玩家档案合并修复**：绑定玩家原只取 wx 侧 → 队友/对手/走势/最近几乎全空（绑定只并了 web 聚合）。`profile_get`/`profile_get_by_handle` 绑定路径改为实时拉 web + `profileExtras` mergeRelations/mergeTrend/mergeRecentGames 合并 web 历史 ∪ 小程序新局。
 
-云函数 15 个（+`pool_add` +`admin`）。**已部署 live**：profile_get / profile_get_by_handle / pool_add(v2 基础)。**待部署（云会话漂移阻塞，同 task#24）**：pool_add(修) / pool_prune(scanTest) / profile_sync(队列) / admin —— 部署后批量补 + 清遗留 test 池玩家 + 上传新客户端 + 真机验证（见「人工清单」#1）。体验版仍 **1.0.4**（新客户端待云函数部署后再传，避免半成品）。**注意**：客户端新功能（admin 页/审核队列/auto-bind 确认）在云函数部署前 dormant/降级。
+**15 云函数全部 live**（+`pool_add` +`admin`），**体验版 1.0.5**，云端=repo=体验版一致（305 测试绿）。部署曾被微信签名后端 `41002` + 多 DevTools 实例阻塞数小时，杀全部实例单开 + 等后端自愈后一把过（复盘见 docs/PLAN.md 2026-06-14 续）。**首次须设管理员**：档案页「⚙︎ 战绩审核」输入口令 `AXAXAX0x` 认领。
 
 ## 账号与环境（2026-06-12 注册完成）
 
