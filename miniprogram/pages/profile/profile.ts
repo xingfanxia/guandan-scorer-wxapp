@@ -1,7 +1,8 @@
 // 玩家档案：openid 维度战绩 + 荣誉（合规别名渲染）+ 成就（读时派生，不落库）
 import { ACHIEVEMENT_COUNT } from '../../shared-logic/achievementLogic.js';
 import { buildProfileVM } from '../../core/profileVM.js';
-import { applyTheme } from '../../core/theme.js';
+import { applyTheme, effectiveTheme, getThemePref } from '../../core/theme.js';
+import { rankChartGeometry, paintRankChart } from '../../core/rankChart.js';
 
 interface ProfileStats {
   sessionsPlayed: number;
@@ -32,12 +33,42 @@ Page({
     honorRows: [] as Array<{ title: string; count: number }>,
     achievementRows: [] as Array<{ id: string; name: string; badge: string; desc: string }>,
     achievementTotal: ACHIEVEMENT_COUNT,
-    boundHandle: ''
+    boundHandle: '',
+    // 队友与对手 / 近期排名走势 / 最近游戏（profileExtras 模板消费）
+    relations: null as unknown,
+    rankTrend: null as null | { points: number[]; max: number },
+    recentGames: [] as Array<{ seq: number; modeText: string; rankText: string; resultText: string; tone: string; honorsText: string }>
   },
 
   onShow() {
     applyTheme(this);
     this.fetchProfile();
+  },
+
+  goAdmin() {
+    wx.navigateTo({ url: '/pages/admin/admin' });
+  },
+
+  /** 画近期排名走势（canvas 渲染须在节点上屏后，故 setData 回调里调） */
+  drawRankChart() {
+    const trend = this.data.rankTrend;
+    if (!trend || !trend.points || trend.points.length === 0) return;
+    this.createSelectorQuery()
+      .select('#rankChart')
+      .fields({ node: true, size: true })
+      .exec((res) => {
+        const node = res && res[0] && res[0].node;
+        if (!node) return;
+        const w = res[0].width;
+        const h = res[0].height;
+        const dpr = Math.min((wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()).pixelRatio || 2, 3);
+        node.width = w * dpr;
+        node.height = h * dpr;
+        const ctx = node.getContext('2d');
+        ctx.scale(dpr, dpr);
+        const geo = rankChartGeometry(trend.points, trend.max, w, h);
+        paintRankChart(ctx, geo, w, h, effectiveTheme(getThemePref()));
+      });
   },
 
   /** 绑定 web 版玩家身份（一次性）：选未被绑定的池玩家 → pool_bind → 老战绩并入 */
@@ -105,8 +136,11 @@ Page({
         summary: vm.summary,
         statCells: vm.statCells,
         honorRows: vm.honorRows,
-        achievementRows: vm.achievementRows
-      });
+        achievementRows: vm.achievementRows,
+        relations: vm.relations,
+        rankTrend: vm.rankTrend,
+        recentGames: vm.recentGames
+      }, () => this.drawRankChart());
     }).catch(() => {
       this.setData({ loading: false, hasProfile: false });
       wx.showToast({ title: '档案读取失败', icon: 'none' });

@@ -4,7 +4,8 @@
     "pages/room/room",
     "pages/history/history",
     "pages/profile/profile",
-    "pages/players/players"
+    "pages/players/players",
+    "pages/admin/admin"
   ],
   "darkmode": true,
   "themeLocation": "theme.json",

@@ -1,0 +1,79 @@
+<!--
+  profileExtras —— 档案扩展区共享模板（档案页 pages/profile + 玩家查询页 pages/players 共用）。
+  队友与对手 4 格摘要 + 全列表胜率条 + 近期排名走势 canvas + 最近游戏。对位 web player-profile.html。
+  用法：<import src="../../templates/profileExtras.wxml"/>
+        <template is="profileExtras" data="{{relations, rankTrend, recentGames}}"/>
+  canvas id 固定 #rankChart；各页 JS 用 this.createSelectorQuery() 页内取节点绘制（页级作用域不冲突）。
+-->
+
+<template name="relSummaryRow">
+  <view class="relrow">
+    <text class="relrow__emoji">{{r.emoji}}</text>
+    <view class="relrow__body">
+      <text class="relrow__name">{{r.name}}</text>
+      <text class="relrow__label">{{r.label}}</text>
+    </view>
+    <view class="relrow__barwrap">
+      <text class="relrow__pct">{{r.pct}}%</text>
+      <view class="relrow__bar"><view class="relrow__fill relrow__fill--{{r.summaryTone}}" style="width:{{r.pct}}%"></view></view>
+    </view>
+  </view>
+</template>
+
+<template name="relBarRow">
+  <view class="relbar">
+    <text class="relbar__name">{{r.emoji}} {{r.name}}</text>
+    <view class="relbar__track"><view class="relbar__fill relbar__fill--{{r.tone}}" style="width:{{r.pct}}%"></view></view>
+    <text class="relbar__pct">{{r.pct}}%</text>
+  </view>
+</template>
+
+<template name="profileExtras">
+  <!-- 队友与对手 -->
+  <view class="card section" wx:if="{{relations}}">
+    <view class="section__title">队友与对手</view>
+    <view class="rels">
+      <view class="rels__col">
+        <view class="rels__coltitle">队友 {{relations.partnerCount}}</view>
+        <template is="relSummaryRow" data="{{r: relations.bestPartner}}" wx:if="{{relations.bestPartner}}"/>
+        <template is="relSummaryRow" data="{{r: relations.worstPartner}}" wx:if="{{relations.worstPartner}}"/>
+        <text class="rels__empty" wx:if="{{!relations.bestPartner}}">暂无队友数据</text>
+      </view>
+      <view class="rels__col">
+        <view class="rels__coltitle">对手 {{relations.opponentCount}}</view>
+        <template is="relSummaryRow" data="{{r: relations.hardestOpponent}}" wx:if="{{relations.hardestOpponent}}"/>
+        <template is="relSummaryRow" data="{{r: relations.easiestOpponent}}" wx:if="{{relations.easiestOpponent}}"/>
+        <text class="rels__empty" wx:if="{{!relations.hardestOpponent}}">暂无对手数据</text>
+      </view>
+    </view>
+
+    <block wx:if="{{relations.allPartners.length > 1}}">
+      <view class="rels__alltitle">所有队友 · 胜率</view>
+      <template is="relBarRow" wx:for="{{relations.allPartners}}" wx:key="key" data="{{r: item}}"/>
+    </block>
+    <block wx:if="{{relations.allOpponents.length > 1}}">
+      <view class="rels__alltitle">所有对手 · 你的胜率</view>
+      <template is="relBarRow" wx:for="{{relations.allOpponents}}" wx:key="key" data="{{r: item}}"/>
+    </block>
+  </view>
+
+  <!-- 近期排名走势 -->
+  <view class="card section" wx:if="{{rankTrend}}">
+    <view class="section__title">近期排名走势</view>
+    <canvas type="2d" id="rankChart" class="rankchart"></canvas>
+    <text class="rankchart__hint">越靠上名次越好 · 旧 → 新</text>
+  </view>
+
+  <!-- 最近游戏 -->
+  <view class="card section" wx:if="{{recentGames.length}}">
+    <view class="section__title">最近游戏</view>
+    <view class="rg" wx:for="{{recentGames}}" wx:key="seq">
+      <view class="rg__res rg__res--{{item.tone}}">{{item.resultText}}</view>
+      <view class="rg__main">
+        <text class="rg__line">{{item.modeText}}{{item.modeText ? ' · ' : ''}}第 {{item.rankText}} 名</text>
+        <text class="rg__honors" wx:if="{{item.honorsText}}">{{item.honorsText}}</text>
+      </view>
+      <text class="rg__date" wx:if="{{item.dateText}}">{{item.dateText}}</text>
+    </view>
+  </view>
+</template>

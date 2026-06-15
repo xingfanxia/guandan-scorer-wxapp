@@ -1,0 +1,31 @@
+<view class="page {{themeClass}}">
+
+  <view class="card empty" wx:if="{{loading}}">读取中…</view>
+
+  <!-- 非管理员：引导口令认领 -->
+  <view class="card section" wx:if="{{!loading && !isAdmin}}">
+    <view class="section__title">管理员认领</view>
+    <text class="admin__hint">战绩入库需管理员审核。管理员本人输入口令认领后，才能审批战绩。</text>
+    <input class="admin__input" type="text" placeholder="管理员口令" password="{{true}}" value="{{secret}}" bindinput="onSecretInput" />
+    <button class="btn btn--primary admin__btn" bindtap="onClaim">认领管理员</button>
+  </view>
+
+  <!-- 管理员：待审列表 -->
+  <block wx:if="{{!loading && isAdmin}}">
+    <view class="card section">
+      <view class="section__title">待审战绩 {{items.length}}</view>
+      <text class="admin__hint" wx:if="{{items.length === 0}}">暂无待审 —— 非管理员的战绩入库会进这里等你审批</text>
+      <view class="pend" wx:for="{{items}}" wx:key="id">
+        <view class="pend__main">
+          <text class="pend__summary">{{item.summary}}</text>
+          <text class="pend__time" wx:if="{{item.timeText}}">{{item.timeText}}</text>
+        </view>
+        <view class="pend__ops">
+          <button class="btn btn--primary pend__ok" size="mini" data-id="{{item.id}}" bindtap="onApprove">通过</button>
+          <button class="btn btn--secondary btn--danger pend__no" size="mini" data-id="{{item.id}}" bindtap="onReject">拒绝</button>
+        </view>
+      </view>
+    </view>
+  </block>
+
+</view>

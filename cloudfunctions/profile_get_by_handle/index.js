@@ -9,6 +9,11 @@
  */
 const cloud = require('wx-server-sdk');
 const { LADDER_BASE, seedLadderRating } = require('./ladderLogic.js');
+const {
+  relationsFromMap, rankTrendFromSessions, rankTrendFromWeb,
+  recentGamesFromSessions, recentGamesFromWeb,
+  mergeRelations, mergeTrend, mergeRecentGames, relationKeys
+} = require('./profileExtras.js');
 const https = require('https');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
@@ -87,6 +92,30 @@ function publicStats(stats) {
   return safe;
 }
 
+/** openid → {name,emoji,handle}：第三方 openid 经 pool 反查显示名，绝不下发 openid 本身 */
+async function resolveByOpenids(db, openids) {
+  const map = new Map();
+  if (!openids.length) return map;
+  const _ = db.command;
+  const res = await db.collection('pool').where({ boundOpenid: _.in(openids) }).limit(100).get().catch(() => ({ data: [] }));
+  for (const d of res.data) {
+    if (d.boundOpenid) map.set(d.boundOpenid, { name: d.displayName || d.handle, emoji: d.emoji || '🙂', handle: d.handle });
+  }
+  return map;
+}
+
+/** handle → {name,emoji,handle}：web 端 partners/opponents 以 handle 键控（公开标识，可下发） */
+async function resolveByHandles(db, handles) {
+  const map = new Map();
+  if (!handles.length) return map;
+  const _ = db.command;
+  const res = await db.collection('pool').where({ handle: _.in(handles) }).limit(100).get().catch(() => ({ data: [] }));
+  for (const d of res.data) {
+    map.set(d.handle, { name: d.displayName || d.handle, emoji: d.emoji || '🙂', handle: d.handle });
+  }
+  return map;
+}
+
 exports.main = async (event) => {
   const handle = String((event && event.handle) || '').toLowerCase();
   if (!/^[a-z0-9_-]{2,32}$/.test(handle)) return { ok: false, error: 'invalid_handle' };
@@ -101,10 +130,46 @@ exports.main = async (event) => {
     // 已绑定：小程序档案（已含并入的 web 历史）
     const doc = await db.collection('players').doc(p.boundOpenid).get().catch(() => null);
     if (doc && doc.data) {
+      const raw = doc.data.stats || {};
+      const stats = publicStats(raw);
+      // 绑定玩家 = web 历史 + 小程序新局。早先只取 wx 侧 → 队友/走势/最近几乎全空
+      // （绑定只并了 web 聚合，关系/走势/最近没并）。这里把 web 那侧也拉来合并，绑定从此富而非空。
+      if (stats) {
+        // wx 侧：队友/对手以别人的 openid 为 key → pool 反查显示名（无 openid 下发）
+        const wxKeys = relationKeys(raw.partners, raw.opponents);
+        const nameByOpenid = await resolveByOpenids(db, wxKeys);
+        const wxResolve = (k) => nameByOpenid.get(k) || null;
+        const wxPartners = relationsFromMap(raw.partners, wxResolve);
+        const wxOpponents = relationsFromMap(raw.opponents, wxResolve);
+        const wxTrend = rankTrendFromSessions(raw.sessionHistory);
+        const wxGames = recentGamesFromSessions(raw.sessionHistory);
+        // web 侧：绑定玩家的 pool handle 即其 web handle → 实时拉全量 web 战绩
+        let webPartners = [], webOpponents = [], webTrend = [], webGames = [];
+        try {
+          const detail = await getJson(`${WEB_BASE}/api/players/${encodeURIComponent(handle)}`);
+          const node = detail && (detail.player || detail);
+          const ws = (node && node.stats) || {};
+          const webKeys = relationKeys(ws.partners, ws.opponents);
+          const nameByHandle = await resolveByHandles(db, webKeys);
+          const webResolve = (h) => nameByHandle.get(h) || { name: h, emoji: '🙂', handle: h };
+          webPartners = relationsFromMap(ws.partners, webResolve);
+          webOpponents = relationsFromMap(ws.opponents, webResolve);
+          webTrend = rankTrendFromWeb(ws.recentRankings);
+          webGames = recentGamesFromWeb(node && node.recentGames);
+        } catch (err) {
+          console.error('bound profile web merge fetch failed:', String((err && err.message) || err));
+        }
+        stats.relations = {
+          partners: mergeRelations(webPartners, wxPartners),
+          opponents: mergeRelations(webOpponents, wxOpponents)
+        };
+        stats.rankTrend = mergeTrend(webTrend, wxTrend);
+        stats.recentGames = mergeRecentGames(webGames, wxGames);
+      }
       profile = {
         displayName: doc.data.displayName || '',
         avatarUrl: doc.data.avatarUrl || '',
-        stats: publicStats(doc.data.stats),
+        stats,
         source: 'wx'
       };
     }
@@ -117,6 +182,18 @@ exports.main = async (event) => {
       const node = detail && (detail.player || detail);
       const full = webStatsToProfileStats(node && node.stats);
       if (full && full.sessionsPlayed > 0) {
+        // web partners/opponents 以 handle 键控（公开） → 经 pool 反查 name/emoji（缺失则回退 @handle）；
+        // 走势用 web recentRankings、最近游戏用 web recentGames（剥房间码）。
+        const ws = (node && node.stats) || {};
+        const keys = relationKeys(ws.partners, ws.opponents);
+        const nameByHandle = await resolveByHandles(db, keys);
+        const resolve = (h) => nameByHandle.get(h) || { name: h, emoji: '🙂', handle: h };
+        full.relations = {
+          partners: relationsFromMap(ws.partners, resolve),
+          opponents: relationsFromMap(ws.opponents, resolve)
+        };
+        full.rankTrend = rankTrendFromWeb(ws.recentRankings);
+        full.recentGames = recentGamesFromWeb(node && node.recentGames);
         profile = { displayName: p.displayName || '', avatarUrl: '', stats: full, source: 'web' };
       }
     } catch (err) {

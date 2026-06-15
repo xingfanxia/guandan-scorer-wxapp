@@ -106,4 +106,105 @@ describe('profileVM.buildProfileVM（档案页/玩家查询页共用）', () => 
       for (const r of vm.honorRows) assert.ok(r.caption.length > 0);
     });
   });
+
+  // 队友与对手（对位 web player-profile.html renderPartnerRivalStats）：
+  // 云函数把 partners/opponents 解析成 display-safe 数组（含 name/emoji，无 openid），VM 派生最佳/最弱。
+  describe('relations 队友与对手派生', () => {
+    const withRel = {
+      ...baseStats,
+      relations: {
+        partners: [
+          { name: '阿轴', emoji: '🐶', handle: 'axax', games: 6, wins: 5, winRate: 5 / 6 },
+          { name: '小昊', emoji: '🐱', handle: 'hao', games: 6, wins: 5, winRate: 5 / 6 },
+          { name: '徐峰', emoji: '🐭', handle: 'xufeng', games: 9, wins: 5, winRate: 5 / 9 },
+          { name: '凡子', emoji: '🐰', handle: 'fzy', games: 4, wins: 1, winRate: 0.25 }
+        ],
+        opponents: [
+          { name: '凡子', emoji: '🐰', handle: 'fzy', games: 9, wins: 8, winRate: 8 / 9 },
+          { name: '焦', emoji: '🦊', handle: 'jiaqicao', games: 9, wins: 5, winRate: 5 / 9 },
+          { name: '徐峰', emoji: '🐭', handle: 'xufeng', games: 6, wins: 1, winRate: 1 / 6 }
+        ]
+      }
+    };
+
+    it('无 relations 字段 → relations 为 null（不破坏老数据）', () => {
+      assert.equal(buildProfileVM(baseStats).relations, null);
+    });
+
+    it('最佳队友=胜率最高，最弱队友=胜率最低；带行话 label', () => {
+      const { relations: rel } = buildProfileVM(withRel);
+      assert.equal(rel.bestPartner.name, '阿轴'); // 5/6 并列时取首个（sort 稳定）
+      assert.equal(rel.bestPartner.label, '大佬带我躺赢');
+      assert.equal(rel.worstPartner.handle, 'fzy'); // 0.25 最低
+      assert.equal(rel.worstPartner.label, '偷着乐吧');
+      assert.equal(rel.bestPartner.pct, '83.3');
+      assert.equal(rel.worstPartner.pct, '25.0');
+    });
+
+    it('最强对手=你的胜率最低（最难赢），最弱对手=你的胜率最高', () => {
+      const { relations: rel } = buildProfileVM(withRel);
+      assert.equal(rel.hardestOpponent.handle, 'xufeng'); // 1/6 你最难赢
+      assert.equal(rel.hardestOpponent.label, '既生瑜何生亮');
+      assert.equal(rel.easiestOpponent.handle, 'fzy'); // 8/9 你最常赢
+      assert.equal(rel.easiestOpponent.label, '这是送分来的');
+    });
+
+    it('全队友/全对手列表带胜率 + bar 宽度 + tone 配色', () => {
+      const { relations: rel } = buildProfileVM(withRel);
+      assert.equal(rel.partnerCount, 4);
+      assert.equal(rel.opponentCount, 3);
+      assert.equal(rel.allPartners.length, 4);
+      // 列表按胜率降序
+      assert.ok(rel.allPartners[0].winRate >= rel.allPartners[3].winRate);
+      const fzyP = rel.allPartners.find(r => r.handle === 'fzy');
+      assert.equal(fzyP.tone, 'loss'); // 25% < 50%
+      const axP = rel.allPartners.find(r => r.handle === 'axax');
+      assert.equal(axP.tone, 'win'); // 83% >= 60%
+      assert.equal(typeof axP.pctNum, 'number');
+    });
+
+    it('只有一个队友 → 不重复显示成最弱（worstPartner=null）', () => {
+      const vm = buildProfileVM({
+        ...baseStats,
+        relations: { partners: [{ name: '独苗', emoji: '🐶', handle: 'solo', games: 3, wins: 2, winRate: 2 / 3 }], opponents: [] }
+      });
+      assert.equal(vm.relations.bestPartner.handle, 'solo');
+      assert.equal(vm.relations.worstPartner, null);
+      assert.equal(vm.relations.opponentCount, 0);
+    });
+  });
+
+  describe('rankTrend 近期排名走势', () => {
+    it('无数据 → null', () => {
+      assert.equal(buildProfileVM(baseStats).rankTrend, null);
+      assert.equal(buildProfileVM({ ...baseStats, rankTrend: [] }).rankTrend, null);
+    });
+    it('透出 points（旧→新）+ 计算 max 轴上限（≥8）', () => {
+      const vm = buildProfileVM({ ...baseStats, rankTrend: [5, 1, 3, 8, 2] });
+      assert.deepEqual(vm.rankTrend.points, [5, 1, 3, 8, 2]);
+      assert.equal(vm.rankTrend.max, 8);
+    });
+    it('排名超 8（大局）时 max 扩到数据上限', () => {
+      const vm = buildProfileVM({ ...baseStats, rankTrend: [9, 3, 10] });
+      assert.equal(vm.rankTrend.max, 10);
+    });
+  });
+
+  describe('recentGames 最近游戏', () => {
+    it('无数据 → 空数组', () => {
+      assert.deepEqual(buildProfileVM(baseStats).recentGames, []);
+    });
+    it('格式化 mode/result/rank，最多 10 条', () => {
+      const games = Array.from({ length: 12 }, (_, i) => ({
+        date: '2026-06-10T07:30:00.000Z', mode: '8P', ranking: 4.9, teamWon: i % 2 === 0, honors: i === 0 ? ['吕布'] : []
+      }));
+      const vm = buildProfileVM({ ...baseStats, recentGames: games });
+      assert.equal(vm.recentGames.length, 10);
+      assert.equal(vm.recentGames[0].modeText, '8人');
+      assert.equal(vm.recentGames[0].resultText, '胜');
+      assert.equal(vm.recentGames[1].resultText, '负');
+      assert.equal(vm.recentGames[0].rankText, '4.9');
+      assert.deepEqual(vm.recentGames[0].honors, ['吕布']);
+    });
+  });
 });
