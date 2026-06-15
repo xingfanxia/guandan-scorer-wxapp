@@ -20,6 +20,8 @@ const callFn = (name, data) => mp.evaluate(
 
 try {
   await mp.reLaunch('/pages/players/players');
+  const pruned = await callFn('pool_prune', { scanTest: true });
+  console.log('清理 test 玩家:', JSON.stringify(pruned), '\n');
   const list = await callFn('pool_list');
   const players = (list && list.players) || [];
   console.log(`pool 玩家数: ${players.length}`);
