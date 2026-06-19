@@ -173,17 +173,26 @@ export function watchRoom(code, { onSnapshot, onStatus }) {
 
   function emit(doc, channel) {
     if (!doc || stopped) return;
+    // 版本去重：claims / voteEpoch / snapshot 的每次服务端写入都 **必须** version+1
+    // （room_write / room_claim_seat / vote_reset 均如此），否则同版本变更会被这里吞掉。
     if (Number.isSafeInteger(doc.version) && doc.version <= lastVersion) return;
     lastVersion = doc.version || lastVersion;
     onSnapshot(doc, channel);
   }
 
   async function pollOnce() {
+    // 走 room_get 云函数（管理端权限直读 + 脱敏），不依赖客户端 db 读权限：
+    // 控制台没把 rooms 设成「所有用户可读」时，watch 会被拒，但这条轮询仍能拿到比分。
     try {
-      const res = await db.collection(ROOMS_COLLECTION).doc(normalized).get();
-      emit(res.data, 'poll');
+      const res = await wx.cloud.callFunction({ name: 'room_get', data: { code: normalized } });
+      const r = (res && res.result) || {};
+      if (r.ok && r.room) {
+        emit(r.room, 'poll');
+      } else if (onStatus) {
+        onStatus({ channel: 'poll', error: true });
+      }
     } catch (err) {
-      console.error('[roomSync] 轮询失败:', err);
+      console.error('[roomSync] room_get 轮询失败:', err);
       if (onStatus) onStatus({ channel: 'poll', error: true });
     }
   }
@@ -233,6 +242,13 @@ export function watchRoom(code, { onSnapshot, onStatus }) {
   return {
     /** 页面 onShow 等时机的主动重同步 */
     refresh: pollOnce,
+    /**
+     * 页面已在 watcher 之外直接渲染了某版本（认领/释放后的 refreshOnce）时，告知去重游标，
+     * 免得随后到达的同版本 watch 帧（原始 doc，openid 未加载时 mine 会闪成 false）再覆盖一次。
+     */
+    syncVersion(v) {
+      if (Number.isSafeInteger(v) && v > lastVersion) lastVersion = v;
+    },
     stop() {
       stopped = true;
       if (pollTimer) clearInterval(pollTimer);

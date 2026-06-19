@@ -15,7 +15,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **战绩入库管理员审核队列**（防房主伪造）：非管理员入库进 `pending_sessions`，管理员（`admins` 集合，口令认领）在 `pages/admin` 审批；`profile_sync` 外科加 approveId 分支（apply 核心不动）；新增 `admin` 云函数。
 - **绑定玩家档案合并修复**：绑定玩家原只取 wx 侧 → 队友/对手/走势/最近几乎全空（绑定只并了 web 聚合）。`profile_get`/`profile_get_by_handle` 绑定路径改为实时拉 web + `profileExtras` mergeRelations/mergeTrend/mergeRecentGames 合并 web 历史 ∪ 小程序新局。
 
-**15 云函数全部 live**（+`pool_add` +`admin`），**体验版 1.0.5**，云端=repo=体验版一致（305 测试绿）。部署曾被微信签名后端 `41002` + 多 DevTools 实例阻塞数小时，杀全部实例单开 + 等后端自愈后一把过（复盘见 docs/PLAN.md 2026-06-14 续）。**首次须设管理员**：档案页「⚙︎ 战绩审核」输入口令 `AXAXAX0x` 认领。
+**15 云函数 live**（+`pool_add` +`admin`），**体验版 1.0.5**，云端=repo=体验版一致。部署曾被微信签名后端 `41002` + 多 DevTools 实例阻塞数小时，杀全部实例单开 + 等后端自愈后一把过（复盘见 docs/PLAN.md 2026-06-14 续）。**首次须设管理员**：档案页「⚙︎ 战绩审核」输入口令 `AXAXAX0x` 认领。
+
+**2026-06-19 加固（分享后非房主进不去房间）**：根因 = 围观读路径是客户端直读 `rooms` 集合，受集合安全规则约束，非房主（另一 openid）被默认「仅创建者可读写」拒（房主无感）。两条入口（分享卡片 / 手输房间码）都汇进 `watchRoom` 故双双失败。新增第 16 个云函数 **`room_get`**（管理端权限直读 + 脱敏不下发 openid）作围观**保底读通道**：`roomSync.pollOnce` / `room.refreshOnce` / `index.collectPosterVotes` 三处客户端 rooms 直读改走它，`db.watch` 保留为实时快通道 → **读权限从硬前提降级为实时优化**（没设也能轮询围观）。311 测试绿。**待 AX：部署 `room_get`（`--names room_get`）+ 上传新客户端 + 控制台设 rooms「所有用户可读」（只此一集合）**。详见 docs/PLAN.md 2026-06-19。
 
 ## 账号与环境（2026-06-12 注册完成）
 
