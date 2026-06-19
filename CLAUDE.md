@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 掼蛋计分助手 — 微信小程序版的掼蛋（Guandan）计分器。是 `~/projects/side-projects/guandan-scorer`（web 版，Vercel + KV）的 sibling repo，**不是 fork**：infra 与 web 版零重叠（原生小程序 + 微信云开发），只共享纯游戏逻辑。
 
-**当前状态（2026-06-14）：核心闭环 + 档案对齐 web 三段 + 四个用户问题修复（全部署上线）**（分支 wxapp-2-scoring-loop，main 对齐 `c8ba911`）——单机计分闭环、云房间围观（watch+轮询）、投票/座位认领/档案、长图海报（web 手机版对位）、玩家池与 web 数据迁移、天梯分（简化 ELO + 起评分；**校准门按历史总场次 web+小程序合计 <3 才待校准沉底**；单一 vendor 源 `shared/ladderLogic.js`）、玩家天梯查询页、**外观开关**（首页三段控件覆盖系统主题，机制见 DESIGN.md §1）。
+**当前状态（2026-06-19）：核心闭环 + 档案对齐 web 三段 + 围观读路径加固（room_get，分享后非房主进不去房间修复）**（分支 wxapp-2-scoring-loop，main 已同步；详细见下方 2026-06-19 段）——单机计分闭环、云房间围观（watch+轮询）、投票/座位认领/档案、长图海报（web 手机版对位）、玩家池与 web 数据迁移、天梯分（简化 ELO + 起评分；**校准门按历史总场次 web+小程序合计 <3 才待校准沉底**；单一 vendor 源 `shared/ladderLogic.js`）、玩家天梯查询页、**外观开关**（首页三段控件覆盖系统主题，机制见 DESIGN.md §1）。
 
 **2026-06-14 新增（gap 审计 + 用户报告，见 docs/PLAN.md 2026-06-14 条 + DESIGN.md §11）**：
 - **档案对齐 web 三段**：队友与对手（最佳/最弱队友、最强/最弱对手 + 全列表胜率条）、近期排名走势（canvas 折线）、最近游戏。两页共用 `templates/profileExtras.wxml`；派生纯函数在 `core/profileVM.js`，折线图 `core/rankChart.js`；云端 `profileExtras.js`（vendored 双份）解析 partners/opponents 成 display-safe 数组（**不下发 openid**）。
@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **15 云函数 live**（+`pool_add` +`admin`），**体验版 1.0.5**，云端=repo=体验版一致。部署曾被微信签名后端 `41002` + 多 DevTools 实例阻塞数小时，杀全部实例单开 + 等后端自愈后一把过（复盘见 docs/PLAN.md 2026-06-14 续）。**首次须设管理员**：档案页「⚙︎ 战绩审核」输入口令 `AXAXAX0x` 认领。
 
-**2026-06-19 加固（分享后非房主进不去房间）**：根因 = 围观读路径是客户端直读 `rooms` 集合，受集合安全规则约束，非房主（另一 openid）被默认「仅创建者可读写」拒（房主无感）。两条入口（分享卡片 / 手输房间码）都汇进 `watchRoom` 故双双失败。新增第 16 个云函数 **`room_get`**（管理端权限直读 + 脱敏不下发 openid）作围观**保底读通道**：`roomSync.pollOnce` / `room.refreshOnce` / `index.collectPosterVotes` 三处客户端 rooms 直读改走它，`db.watch` 保留为实时快通道 → **读权限从硬前提降级为实时优化**（没设也能轮询围观）。311 测试绿。代码 commit `e1f697e`、main `f02be97`；**`room_get` 已 GUI 部署（Active）**，rooms 读权限用户已设。**待 AX：上传新客户端让 room_get 生效**（上传前 GUI「云端测试」room_get 传 `{"code":"A1B2C3"}` 应回 `room_not_found`）。详见 docs/PLAN.md 2026-06-19。
+**2026-06-19 加固（分享后非房主进不去房间）**：根因 = 围观读路径是客户端直读 `rooms` 集合，受集合安全规则约束，非房主（另一 openid）被默认「仅创建者可读写」拒（房主无感）。两条入口（分享卡片 / 手输房间码）都汇进 `watchRoom` 故双双失败。新增第 16 个云函数 **`room_get`**（管理端权限直读 + 脱敏不下发 openid）作围观**保底读通道**：`roomSync.pollOnce` / `room.refreshOnce` / `index.collectPosterVotes` 三处客户端 rooms 直读改走它，`db.watch` 保留为实时快通道 → **读权限从硬前提降级为实时优化**（没设也能轮询围观）。311 测试绿。代码 commit `e1f697e`、main `f02be97`；**`room_get` 已 GUI 部署 + 云端测试通过**（`{"code":"A1B2C3"}`→`room_not_found`，依赖就绪），rooms 读权限用户已设，**客户端已上传体验版 1.0.6**（`cli upload`，room_get 集成生效）。**待 AX：mp 后台选 1.0.6 为体验版**。详见 docs/PLAN.md 2026-06-19。
 
 **⚠️ 云函数部署踩坑（2026-06-19 定论，覆盖 2026-06-14 误判）**：`cli cloud functions deploy` 报 `getCloudAPISignedHeader 41002 system error` **不是「微信签名后端抽风、等自愈」**——是 **CLI 这条签名通道对本机坏了**（账号/环境/网络/登录/appid 全好，已逐项排除；连重部署已存在的函数也同样 41002，但 list/info 等 read 正常）。**正确处理：直接用 IDE GUI 部署** —— 右键 `cloudfunctions/<fn>` →「上传并部署：云端安装依赖」（GUI 走 IDE 内部会话签名，是好的通道）。别再按旧 doc 空等几小时。`cli ... download` 也被同一 quirk 挡。
 
