@@ -637,8 +637,11 @@ Page({
   async collectPosterVotes(s: ReturnType<ReturnType<typeof getStore>['getState']>) {
     const code = getOwnerSession().getCode();
     if (!code || !s.gameStatus?.ended || !wx.cloud) return null;
-    const doc = await wx.cloud.database().collection('rooms').doc(code).get();
-    const voteEpoch = Number((doc.data as { voteEpoch?: number }).voteEpoch || 0);
+    // 走 room_get（管理端权限直读），不依赖客户端 db 读权限 —— 房主读自己房间的 voteEpoch
+    const res0 = await wx.cloud.callFunction({ name: 'room_get', data: { code } });
+    const room0 = ((res0.result || {}) as { ok: boolean; room?: { voteEpoch?: number } }).room;
+    if (!room0) return null;
+    const voteEpoch = Number(room0.voteEpoch || 0);
     const key = deriveVoteSessionKey({
       roomCode: code,
       gameStatus: s.gameStatus,

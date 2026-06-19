@@ -39,7 +39,7 @@ Page({
     isOwner: false
   },
 
-  watcher: null as null | { stop(): void; refresh(): void },
+  watcher: null as null | { stop(): void; refresh(): void; syncVersion(v: number): void },
   myOpenid: '',
   myBoundHandle: '',
   myBoundName: '',
@@ -99,7 +99,8 @@ Page({
     this.lastChannel = channel;
     const s = doc.snapshot as Record<string, unknown> | undefined;
     if (!s) return;
-    const claims = (doc.claims || {}) as Record<string, { openid: string; nickname: string }>;
+    // 双通道：watch 给原始 doc（claim.openid，客户端比对）；room_get 给脱敏 doc（claim.mine 已判好）
+    const claims = (doc.claims || {}) as Record<string, { openid?: string; nickname: string; mine?: boolean }>;
     const players = (s.players || []) as Array<{ id: number; name: string; emoji: string; team: number }>;
 
     const seats: SeatVM[] = (players as Array<{ id: number; name: string; emoji: string; team: number; handle?: string }>).map(p => {
@@ -112,7 +113,7 @@ Page({
         team: p.team,
         handle,
         claim: claim ? { nickname: claim.nickname } : null,
-        mine: Boolean(claim && this.myOpenid && claim.openid === this.myOpenid),
+        mine: Boolean(claim && (claim.mine === true || (this.myOpenid && claim.openid === this.myOpenid))),
         suggestClaim: Boolean(!claim && handle && this.myBoundHandle && handle === this.myBoundHandle)
       };
     });
@@ -154,7 +155,7 @@ Page({
       stats: buildSessionStatsVM(s),
       seats,
       mvp,
-      isOwner: Boolean(this.myOpenid && doc.ownerOpenid === this.myOpenid),
+      isOwner: Boolean(doc.isOwner === true || (this.myOpenid && doc.ownerOpenid === this.myOpenid)),
       channelText: channel === 'watch' ? '实时同步中' : '轮询同步中'
     });
   },
@@ -251,14 +252,18 @@ Page({
   },
 
   refreshOnce() {
-    wx.cloud.database().collection('rooms').doc(this.data.code).get()
-      .then((res: { data: Record<string, unknown> }) => {
-        if (res.data) {
-          this.lastDoc = res.data;
-          this.renderDoc(res.data, 'poll');
+    // 认领/释放后立即反映 —— 走 room_get（脱敏 + 不依赖客户端读权限），绕开 watch 的版本去重
+    wx.cloud.callFunction({ name: 'room_get', data: { code: this.data.code } })
+      .then((res) => {
+        const r = (res.result || {}) as { ok: boolean; room?: Record<string, unknown> };
+        if (r.ok && r.room) {
+          this.lastDoc = r.room;
+          this.renderDoc(r.room, 'poll');
+          // 已直接渲染该版本 → 同步 watcher 去重游标，免得随后的同版本 watch 帧把 mine 闪回 false
+          if (this.watcher) this.watcher.syncVersion(Number(r.room.version));
         }
       })
-      .catch(() => { /* 权限未开时静等 watch/poll 通道 */ });
+      .catch(() => { /* 失败静等 watch/poll 通道 */ });
   },
 
   /* ===== 投票 ===== */
