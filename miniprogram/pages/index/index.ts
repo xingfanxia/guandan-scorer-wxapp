@@ -90,6 +90,8 @@ Page({
   onShow() {
     this.syncAppearance();
     wx.showShareMenu({ withShareTicket: true });
+    // seed 初始房号：从 storage 恢复会话时 getOwnerSession() 不发 subscribeOwnerCode（订阅只管「变化」），
+    // 故这里直读一次播种；后续 code 变化由订阅锁步。勿删此行。
     this.setData({ roomCode: getOwnerSession().getCode() || '' });
     this.refresh();
   },
