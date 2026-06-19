@@ -79,8 +79,21 @@
 /* ===== 围观分享 ===== */
 .share {
   display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.share__row {
+  display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.share__watch {
+  width: 100%;
+  height: var(--touch-min);
+  line-height: var(--touch-min);
+  font-size: var(--font-body);
 }
 
 .share__code {

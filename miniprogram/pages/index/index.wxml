@@ -42,12 +42,16 @@
 
   <!-- 围观分享 -->
   <view class="card section share">
-    <view>
-      <view class="share__code">{{roomCode || '围观'}}</view>
-      <view class="share__hint">{{roomCode ? '群里发卡片，牌友点开即看实时比分' : '开围观生成房间码，牌友实时看分'}}</view>
+    <view class="share__row">
+      <view>
+        <view class="share__code">{{roomCode || '围观'}}</view>
+        <view class="share__hint">{{roomCode ? '群里发卡片，牌友点开即看实时比分' : '开围观生成房间码，牌友实时看分'}}</view>
+      </view>
+      <button wx:if="{{roomCode}}" class="btn btn--secondary share__btn" open-type="share">发到群里</button>
+      <button wx:else class="btn btn--secondary share__btn" bindtap="onOpenRoom">开围观</button>
     </view>
-    <button wx:if="{{roomCode}}" class="btn btn--secondary share__btn" open-type="share">发到群里</button>
-    <button wx:else class="btn btn--secondary share__btn" bindtap="onOpenRoom">开围观</button>
+    <!-- 围观别人：常驻显眼入口（房主以外的牌友进别人的房间看分） -->
+    <button class="btn btn--primary share__watch" bindtap="onEnterRoomCode">🔭 围观别人的房间 · 输房间码</button>
   </view>
 
   <!-- 模式与规则 -->
@@ -132,8 +136,7 @@
     <button class="btn btn--ghost nav__btn" hover-class="btn--pressed" bindtap="goHistory">对局历史</button>
     <button class="btn btn--ghost nav__btn" hover-class="btn--pressed" bindtap="goProfile">我的档案</button>
     <button class="btn btn--ghost nav__btn" hover-class="btn--pressed" bindtap="goPlayers">玩家天梯</button>
-    <button wx:if="{{roomCode}}" class="btn btn--ghost nav__btn" hover-class="btn--pressed" bindtap="goRoom">进房间</button>
-    <button class="btn btn--ghost nav__btn" hover-class="btn--pressed" bindtap="onEnterRoomCode">围观别人</button>
+    <button wx:if="{{roomCode}}" class="btn btn--ghost nav__btn" hover-class="btn--pressed" bindtap="goRoom">进我的房间</button>
   </view>
 
   <view class="bar-spacer"></view>

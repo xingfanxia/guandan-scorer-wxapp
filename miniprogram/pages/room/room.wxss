@@ -41,107 +41,45 @@
 }
 
 /* ===== 座位认领 ===== */
-.seat {
+/* ===== 红蓝队阵容 ===== */
+.roster {
   display: flex;
-  align-items: center;
-  min-height: var(--touch-min);
-  position: relative;
+  align-items: stretch;
+  gap: var(--s3);
 }
 
-.seat__bar {
-  width: 6rpx;
-  height: 36rpx;
-  border-radius: var(--radius-pill);
-  margin-right: var(--s2);
-}
-
-.seat__bar--t1 { background: var(--team-t1); }
-.seat__bar--t2 { background: var(--team-t2); }
-
-.seat__player {
+.roster__team {
   flex: 1;
-  font-size: var(--font-body);
-}
-
-.seat__claim {
-  font-size: var(--font-label);
-  color: var(--text-secondary);
-}
-
-.seat__claim--mine {
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.seat__btn {
-  flex: 0 0 auto;
-  width: 144rpx;
   min-width: 0;
-  height: 72rpx;
-  line-height: 72rpx;
+}
+
+.roster__divider {
+  flex: 0 0 1rpx;
+  width: 1rpx;
+  background: var(--hairline);
+}
+
+.roster__team-name {
+  display: block;
   font-size: var(--font-label);
-  padding: 0;
+  font-weight: 600;
+  letter-spacing: 2rpx;
+  margin-bottom: var(--s2);
 }
 
-.seat__btn--suggest {
-  background: var(--accent);
-  color: var(--on-accent);
-  border: none;
-}
+.roster__team-name--t1 { color: var(--team-t1); }
+.roster__team-name--t2 { color: var(--team-t2); }
 
-.seat__release {
-  position: absolute;
-  inset: 0;
-  left: 50%;
-}
-
-.claim-form {
+.roster__members {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: var(--s2);
-  margin-top: var(--s3);
-  padding-top: var(--s3);
-  border-top: 1rpx solid var(--hairline);
 }
 
-.claim-form__avatar {
-  flex: 0 0 96rpx;
-  width: 96rpx;
-  height: 96rpx;
-  border-radius: var(--radius-pill);
-  background: var(--surface-2);
-  border: 1rpx dashed var(--hairline);
-  padding: 0;
-  font-size: var(--font-label);
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-
-.claim-form__avatar::after { border: none; }
-
-.claim-form__avatar-img {
-  width: 100%;
-  height: 100%;
-}
-
-.claim-form__nick {
-  flex: 1;
-  height: 88rpx;
-  background: var(--surface-2);
-  border-radius: var(--radius-control);
-  padding: 0 var(--s3);
+.roster__member {
   font-size: var(--font-body);
-}
-
-.claim-form__submit {
-  flex: 0 0 160rpx;
-  width: 160rpx;
-  height: 88rpx;
-  line-height: 88rpx;
-  font-size: var(--font-body);
+  color: var(--text-primary);
+  line-height: 1.4;
 }
 
 /* ===== 结算与投票 ===== */
@@ -269,6 +207,12 @@
   font-size: var(--font-label);
   color: var(--gold-a);
   letter-spacing: 2rpx;
+}
+
+.stats__honors-locked {
+  margin-top: var(--s3);
+  font-size: var(--font-label);
+  color: var(--text-secondary);
 }
 
 .honor-line {

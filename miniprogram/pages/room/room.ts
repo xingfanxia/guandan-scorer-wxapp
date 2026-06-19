@@ -1,19 +1,16 @@
-// 围观页：实时比分（watch+轮询）、座位认领（微信身份）、结束后投票
+// 围观页：实时比分（watch+轮询）、红蓝队组成、本场统计/荣誉、逐局记录、结束后投票
 import { watchRoom } from '../../core/roomSync.js';
 import { buildBoardVM, buildHistoryRows, buildSessionStatsVM } from '../../core/viewModel.js';
 import { computeSessionMvp } from '../../core/victoryStats.js';
 import { deriveVoteSessionKey } from '../../shared-logic/voteSessionKey.js';
 import { applyTheme } from '../../core/theme.js';
 
+// 投票/统计用的座位（认领功能已下线，围观端只读）
 interface SeatVM {
   id: number;
   name: string;
   emoji: string;
   team: number;
-  handle: string;
-  claim: { nickname: string } | null;
-  mine: boolean;
-  suggestClaim: boolean; // 这个座位的 handle 绑定的是我 → 一键认领
 }
 
 Page({
@@ -25,11 +22,9 @@ Page({
     rows: [] as unknown[],
     stats: null as unknown,
     seats: [] as SeatVM[],
+    // 红蓝队队员组成（围观端展示，按队分组）
+    teamRoster: { t1: [] as Array<{ emoji: string; name: string }>, t2: [] as Array<{ emoji: string; name: string }> },
     channelText: '',
-    // 认领表单
-    claimingSeatId: 0,
-    claimNickname: '',
-    claimAvatar: '',
     // 结算与投票
     mvp: null as null | { name: string; emoji: string; avg: string },
     voteMvp: 0,
@@ -40,9 +35,7 @@ Page({
   },
 
   watcher: null as null | { stop(): void; refresh(): void; syncVersion(v: number): void },
-  myOpenid: '',
-  myBoundHandle: '',
-  myBoundName: '',
+  myOpenid: '', // 用于判定房主（watch 通道 ownerOpenid 比对；room_get 通道直接给 isOwner）
   sessionKey: '',
   lastChannel: 'poll',
   lastDoc: null as null | Record<string, unknown>,
@@ -55,23 +48,12 @@ Page({
     }
     this.setData({ code });
 
-    // 自己的 openid（座位归属判定）
+    // 自己的 openid（判定是否房主 → 显示「重新开票」）
     wx.cloud.callFunction({ name: 'profile_get' }).then((res) => {
       const r = (res.result || {}) as { openid?: string };
       this.myOpenid = r.openid || '';
       if (this.lastDoc) this.renderDoc(this.lastDoc, this.lastChannel);
     }).catch(() => { /* 不阻塞围观 */ });
-
-    // 我的玩家池绑定（座位「一键认领」提示用）
-    wx.cloud.callFunction({ name: 'pool_list' }).then((res) => {
-      const r = (res.result || {}) as { ok: boolean; players?: Array<{ handle: string; displayName: string; boundToMe: boolean }> };
-      const mine = (r.players || []).find(p => p.boundToMe);
-      if (mine) {
-        this.myBoundHandle = mine.handle;
-        this.myBoundName = mine.displayName;
-        if (this.lastDoc) this.renderDoc(this.lastDoc, this.lastChannel);
-      }
-    }).catch(() => { /* 池子不可用不影响围观 */ });
 
     this.watcher = watchRoom(code, {
       onSnapshot: (doc: Record<string, unknown>, channel: string) => {
@@ -99,24 +81,15 @@ Page({
     this.lastChannel = channel;
     const s = doc.snapshot as Record<string, unknown> | undefined;
     if (!s) return;
-    // 双通道：watch 给原始 doc（claim.openid，客户端比对）；room_get 给脱敏 doc（claim.mine 已判好）
-    const claims = (doc.claims || {}) as Record<string, { openid?: string; nickname: string; mine?: boolean }>;
     const players = (s.players || []) as Array<{ id: number; name: string; emoji: string; team: number }>;
 
-    const seats: SeatVM[] = (players as Array<{ id: number; name: string; emoji: string; team: number; handle?: string }>).map(p => {
-      const claim = claims[String(p.id)] || null;
-      const handle = p.handle || '';
-      return {
-        id: p.id,
-        name: p.name,
-        emoji: p.emoji,
-        team: p.team,
-        handle,
-        claim: claim ? { nickname: claim.nickname } : null,
-        mine: Boolean(claim && (claim.mine === true || (this.myOpenid && claim.openid === this.myOpenid))),
-        suggestClaim: Boolean(!claim && handle && this.myBoundHandle && handle === this.myBoundHandle)
-      };
-    });
+    // 投票用座位（id/名字/emoji）
+    const seats: SeatVM[] = players.map(p => ({ id: p.id, name: p.name, emoji: p.emoji, team: p.team }));
+    // 红蓝队队员组成（围观端展示，按队分组）
+    const teamRoster = {
+      t1: players.filter(p => p.team === 1).map(p => ({ emoji: p.emoji, name: p.name })),
+      t2: players.filter(p => p.team === 2).map(p => ({ emoji: p.emoji, name: p.name }))
+    };
 
     const vm = buildBoardVM(s);
     let mvp = null;
@@ -154,6 +127,7 @@ Page({
       rows: buildHistoryRows((s.history || []) as Array<Record<string, unknown>>),
       stats: buildSessionStatsVM(s),
       seats,
+      teamRoster,
       mvp,
       isOwner: Boolean(doc.isOwner === true || (this.myOpenid && doc.ownerOpenid === this.myOpenid)),
       channelText: channel === 'watch' ? '实时同步中' : '轮询同步中'
@@ -178,92 +152,6 @@ Page({
         }).catch(() => wx.showToast({ title: '操作失败，检查网络', icon: 'none' }));
       }
     });
-  },
-
-  /* ===== 座位认领 ===== */
-
-  onStartClaim(e: WechatMiniprogram.TouchEvent) {
-    const seatId = Number(e.currentTarget.dataset.id);
-    const seat = (this.data.seats as SeatVM[]).find(s => s.id === seatId);
-    // 绑定过玩家池身份 → 昵称预填，一键确认
-    this.setData({
-      claimingSeatId: seatId,
-      claimNickname: seat && seat.suggestClaim ? this.myBoundName : this.data.claimNickname
-    });
-  },
-
-  onChooseAvatar(e: WechatMiniprogram.CustomEvent<{ avatarUrl: string }>) {
-    this.setData({ claimAvatar: e.detail.avatarUrl });
-  },
-
-  onNickInput(e: WechatMiniprogram.Input) {
-    this.setData({ claimNickname: e.detail.value });
-  },
-
-  onConfirmClaim() {
-    const seatId = this.data.claimingSeatId;
-    if (!seatId) return;
-    const nickname = this.data.claimNickname.trim();
-    if (!nickname) {
-      wx.showToast({ title: '填个昵称再认领', icon: 'none' });
-      return;
-    }
-    wx.cloud.callFunction({
-      name: 'room_claim_seat',
-      data: {
-        code: this.data.code,
-        playerId: seatId,
-        action: 'claim',
-        profile: { nickname, avatarUrl: this.data.claimAvatar }
-      }
-    }).then((res) => {
-      const r = (res.result || {}) as { ok: boolean; message?: string };
-      if (r.ok) {
-        wx.showToast({ title: '认领成功', icon: 'none' });
-        this.setData({ claimingSeatId: 0, claimNickname: '', claimAvatar: '' });
-        // claims 不经 room_write 推送，主动刷一次
-        if (this.lastDoc) this.refreshOnce();
-      } else {
-        wx.showToast({ title: r.message || '认领失败', icon: 'none' });
-      }
-    }).catch(() => wx.showToast({ title: '认领失败，检查网络', icon: 'none' }));
-  },
-
-  onRelease(e: WechatMiniprogram.TouchEvent) {
-    const seatId = Number(e.currentTarget.dataset.id);
-    wx.showModal({
-      title: '释放座位？',
-      content: '释放后别人可以认领这个座位。',
-      success: (m) => {
-        if (!m.confirm) return;
-        wx.cloud.callFunction({
-          name: 'room_claim_seat',
-          data: { code: this.data.code, playerId: seatId, action: 'release' }
-        }).then((res) => {
-          const r = (res.result || {}) as { ok: boolean; message?: string };
-          if (!r.ok) {
-            wx.showToast({ title: r.message || '释放失败', icon: 'none' });
-            return;
-          }
-          this.refreshOnce();
-        }).catch(() => wx.showToast({ title: '释放失败，检查网络', icon: 'none' }));
-      }
-    });
-  },
-
-  refreshOnce() {
-    // 认领/释放后立即反映 —— 走 room_get（脱敏 + 不依赖客户端读权限），绕开 watch 的版本去重
-    wx.cloud.callFunction({ name: 'room_get', data: { code: this.data.code } })
-      .then((res) => {
-        const r = (res.result || {}) as { ok: boolean; room?: Record<string, unknown> };
-        if (r.ok && r.room) {
-          this.lastDoc = r.room;
-          this.renderDoc(r.room, 'poll');
-          // 已直接渲染该版本 → 同步 watcher 去重游标，免得随后的同版本 watch 帧把 mine 闪回 false
-          if (this.watcher) this.watcher.syncVersion(Number(r.room.version));
-        }
-      })
-      .catch(() => { /* 失败静等 watch/poll 通道 */ });
   },
 
   /* ===== 投票 ===== */

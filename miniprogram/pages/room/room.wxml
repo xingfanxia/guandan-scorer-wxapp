@@ -26,40 +26,23 @@
       </view>
     </view>
 
-    <!-- 座位认领 -->
-    <view class="card section" wx:if="{{seats.length > 0}}">
-      <view class="section__head">
-        <text class="section__title">座位</text>
-        <text class="section__hint">认领你的座位，战绩记到你的微信</text>
-      </view>
-      <view class="seat" wx:for="{{seats}}" wx:for-item="s" wx:key="id">
-        <view class="seat__bar seat__bar--t{{s.team}}"></view>
-        <text class="seat__player">{{s.emoji}} {{s.name}}</text>
-        <text class="seat__claim" wx:if="{{s.claim && !s.mine}}">{{s.claim.nickname || '已认领'}}</text>
-        <text class="seat__claim seat__claim--mine" wx:if="{{s.mine}}">我 · 点击释放</text>
-        <button
-          wx:if="{{!s.claim}}"
-          class="btn btn--secondary seat__btn {{s.suggestClaim ? 'seat__btn--suggest' : ''}}"
-          data-id="{{s.id}}"
-          bindtap="onStartClaim"
-        >{{s.suggestClaim ? '这是我' : '认领'}}</button>
-        <view wx:if="{{s.mine}}" class="seat__release" data-id="{{s.id}}" bindtap="onRelease"></view>
-      </view>
-
-      <!-- 认领表单（头像昵称填写能力） -->
-      <view class="claim-form" wx:if="{{claimingSeatId}}">
-        <button class="claim-form__avatar" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar">
-          <image wx:if="{{claimAvatar}}" class="claim-form__avatar-img" src="{{claimAvatar}}" />
-          <text wx:else>选头像</text>
-        </button>
-        <input
-          class="claim-form__nick"
-          type="nickname"
-          placeholder="微信昵称或自己起"
-          bindinput="onNickInput"
-          value="{{claimNickname}}"
-        />
-        <button class="btn btn--primary claim-form__submit" bindtap="onConfirmClaim">认领</button>
+    <!-- 红蓝队阵容 -->
+    <view class="card section" wx:if="{{teamRoster.t1.length > 0 || teamRoster.t2.length > 0}}">
+      <view class="section__title">阵容</view>
+      <view class="roster">
+        <view class="roster__team">
+          <text class="roster__team-name roster__team-name--t1">{{vm.teamNames.t1}}</text>
+          <view class="roster__members">
+            <text class="roster__member" wx:for="{{teamRoster.t1}}" wx:for-item="p" wx:key="name">{{p.emoji}} {{p.name}}</text>
+          </view>
+        </view>
+        <view class="roster__divider"></view>
+        <view class="roster__team">
+          <text class="roster__team-name roster__team-name--t2">{{vm.teamNames.t2}}</text>
+          <view class="roster__members">
+            <text class="roster__member" wx:for="{{teamRoster.t2}}" wx:for-item="p" wx:key="name">{{p.emoji}} {{p.name}}</text>
+          </view>
+        </view>
       </view>
     </view>
 
@@ -139,6 +122,7 @@
           <text class="honor-line__holder">{{h.emoji}} {{h.name}}</text>
         </view>
       </block>
+      <view class="stats__honors-locked" wx:if="{{!stats.honorsUnlocked}}">本场荣誉满 5 局解锁 · 还差 {{5 - stats.gamesInSession}} 局</view>
     </view>
 
     <!-- 逐局记录 -->
