@@ -51,7 +51,7 @@
       <button wx:else class="btn btn--secondary share__btn" bindtap="onOpenRoom">开围观</button>
     </view>
     <!-- 围观别人：常驻显眼入口（房主以外的牌友进别人的房间看分） -->
-    <button class="btn btn--primary share__watch" bindtap="onEnterRoomCode">🔭 围观别人的房间 · 输房间码</button>
+    <button class="btn btn--primary share__watch" bindtap="onEnterRoomCode">🔭 围观房间码</button>
   </view>
 
   <!-- 模式与规则 -->

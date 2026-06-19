@@ -19,7 +19,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **2026-06-19 加固（分享后非房主进不去房间）**：根因 = 围观读路径是客户端直读 `rooms` 集合，受集合安全规则约束，非房主（另一 openid）被默认「仅创建者可读写」拒（房主无感）。两条入口（分享卡片 / 手输房间码）都汇进 `watchRoom` 故双双失败。新增第 16 个云函数 **`room_get`**（管理端权限直读 + 脱敏不下发 openid）作围观**保底读通道**：`roomSync.pollOnce` / `room.refreshOnce` / `index.collectPosterVotes` 三处客户端 rooms 直读改走它，`db.watch` 保留为实时快通道 → **读权限从硬前提降级为实时优化**（没设也能轮询围观）。311 测试绿。代码 commit `e1f697e`、main `f02be97`；**`room_get` 已 GUI 部署 + 云端测试通过**（`{"code":"A1B2C3"}`→`room_not_found`，依赖就绪），rooms 读权限用户已设，**客户端已上传体验版 1.0.7**（`cli upload`）。**待 AX：mp 后台选 1.0.7 为体验版**。
 
-**2026-06-19（续3）真机迭代**：修 3 个房间生命周期 bug（清空玩家重来 detach 开新房 / 「围观别人」做成围观卡显眼常驻主按钮 / `ownerRoom.subscribeOwnerCode` 房号与会话 code 锁步防分享失效房）+ 围观页优化（座位认领区→红蓝队阵容、荣誉满 5 局解锁提示、**认领 client 下线**，`room_claim_seat` 云函数休眠保留）。**「发到群里」按钮报未认证 = 微信平台限制（非代码）**，绕过用「...」转发/手输房号，解锁需小程序认证。详见 docs/PLAN.md 2026-06-19。
+**2026-06-19（续3）真机迭代**：修 3 个房间生命周期 bug（清空玩家重来 detach 开新房 / 「围观别人」做成围观卡显眼常驻主按钮 / `ownerRoom.subscribeOwnerCode` 房号与会话 code 锁步防分享失效房）+ 围观页优化（座位认领区→红蓝队阵容、荣誉满 5 局解锁提示、**认领 client 下线**，`room_claim_seat` 云函数休眠保留）。详见 docs/PLAN.md 2026-06-19。
+
+**2026-06-19（续4）分享卡片自动进房 = 认证门，非代码（官方确认）**：第二个号点「...」转发卡片落首页空房（同房号「围观别人」手输能进完整局 → 纯路由、云端有数据非 push bug）。根因 = **未认证小程序无「被分享」能力**（官方「快速创建个人小程序」文档 + mp 后台微信认证页明写：完成微信认证后才获「被搜索/被分享」），微信把 `onShareAppMessage` 自定义 title+path 丢了走默认（当前页 index）→ 落首页。**代码 path 一直对的，绕不过；认证是唯一正解**（个人 30 元/年扫脸，~1 小时电话确认）。**不改纯数字房号**（只优化手输、要重部署 8 云函数、仍不解卡片）。**当前：微信认证审核中**；客户端 **体验版 1.0.8**。认证过 → 选 1.0.8 体验版 → 「...」转发有内容房间 → 第二个号点卡片应直接进围观页。详见 docs/PLAN.md 续4。
 
 **⚠️ 云函数部署踩坑（2026-06-19 定论，覆盖 2026-06-14 误判）**：`cli cloud functions deploy` 报 `getCloudAPISignedHeader 41002 system error` **不是「微信签名后端抽风、等自愈」**——是 **CLI 这条签名通道对本机坏了**（账号/环境/网络/登录/appid 全好，已逐项排除；连重部署已存在的函数也同样 41002，但 list/info 等 read 正常）。**正确处理：直接用 IDE GUI 部署** —— 右键 `cloudfunctions/<fn>` →「上传并部署：云端安装依赖」（GUI 走 IDE 内部会话签名，是好的通道）。别再按旧 doc 空等几小时。`cli ... download` 也被同一 quirk 挡。
 
