@@ -1,6 +1,6 @@
 // 主计分页：模式/规则、玩家管理、名次顺序录入、升级预览、应用/撤销/重置、围观分享
 import { getStore } from '../../core/appStore.js';
-import { getOwnerSession } from '../../core/ownerRoom.js';
+import { getOwnerSession, subscribeOwnerCode } from '../../core/ownerRoom.js';
 import { buildBoardVM } from '../../core/viewModel.js';
 import { computeSessionMvp } from '../../core/victoryStats.js';
 import { buildProfileSessions } from '../../core/profileSession.js';
@@ -57,11 +57,20 @@ Page({
 
   /** 名次录入：玩家 id 按完成顺序排列（头游在前） */
   order: [] as number[],
+  /** 房间码订阅取消句柄（onLoad 注册，onUnload 清理） */
+  _unsubCode: null as null | (() => void),
 
   onLoad() {
     this.syncAppearance();
     // auto 偏好时跟随系统主题实时切换（accentColor 是 switch 组件属性，吃不到 CSS 变量，单独维护）
     wx.onThemeChange?.(() => this.syncAppearance());
+    // 房间码与会话锁步：房间被后台清空（room_not_found）/detach 时页面立即隐藏旧房号 + 「进房间」，
+    // 杜绝分享卡片/进房间把围观者引到失效房间（2026-06-19 分叉修复）
+    this._unsubCode = subscribeOwnerCode((code: string) => this.setData({ roomCode: code }));
+  },
+
+  onUnload() {
+    if (this._unsubCode) this._unsubCode();
   },
 
   /** 同步外观：themeClass + 导航栏（applyTheme）+ switch 的 accentColor（按生效主题，非系统主题） */
@@ -827,8 +836,14 @@ Page({
     this.setData({ resetSheet: false });
     if (mode === 'cancel') return;
     const preserve = mode === 'keep';
-    // 重置 = 同一桌继续打，**保留房间**（围观者不掉线）；换桌请用「换人数」开新房间
     getStore().resetGame(preserve);
+    if (preserve) {
+      // 重新开一局（保留玩家）= 同一桌继续打，**保留房间**（围观者不掉线）
+    } else {
+      // 清空玩家重来 = 新一桌 → **开新房间**（旧房间留档供旧围观者看完）；新局开打即建新房
+      getOwnerSession().detach();
+      this.setData({ roomCode: '' });
+    }
     this.order = [];
     this.refresh();
     wx.showToast({ title: preserve ? '已重新开局（保留玩家）' : '已清空，重新加人', icon: 'none' });
