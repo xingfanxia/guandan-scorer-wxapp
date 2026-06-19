@@ -17,7 +17,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **15 云函数 live**（+`pool_add` +`admin`），**体验版 1.0.5**，云端=repo=体验版一致。部署曾被微信签名后端 `41002` + 多 DevTools 实例阻塞数小时，杀全部实例单开 + 等后端自愈后一把过（复盘见 docs/PLAN.md 2026-06-14 续）。**首次须设管理员**：档案页「⚙︎ 战绩审核」输入口令 `AXAXAX0x` 认领。
 
-**2026-06-19 加固（分享后非房主进不去房间）**：根因 = 围观读路径是客户端直读 `rooms` 集合，受集合安全规则约束，非房主（另一 openid）被默认「仅创建者可读写」拒（房主无感）。两条入口（分享卡片 / 手输房间码）都汇进 `watchRoom` 故双双失败。新增第 16 个云函数 **`room_get`**（管理端权限直读 + 脱敏不下发 openid）作围观**保底读通道**：`roomSync.pollOnce` / `room.refreshOnce` / `index.collectPosterVotes` 三处客户端 rooms 直读改走它，`db.watch` 保留为实时快通道 → **读权限从硬前提降级为实时优化**（没设也能轮询围观）。311 测试绿。**待 AX：部署 `room_get`（`--names room_get`）+ 上传新客户端 + 控制台设 rooms「所有用户可读」（只此一集合）**。详见 docs/PLAN.md 2026-06-19。
+**2026-06-19 加固（分享后非房主进不去房间）**：根因 = 围观读路径是客户端直读 `rooms` 集合，受集合安全规则约束，非房主（另一 openid）被默认「仅创建者可读写」拒（房主无感）。两条入口（分享卡片 / 手输房间码）都汇进 `watchRoom` 故双双失败。新增第 16 个云函数 **`room_get`**（管理端权限直读 + 脱敏不下发 openid）作围观**保底读通道**：`roomSync.pollOnce` / `room.refreshOnce` / `index.collectPosterVotes` 三处客户端 rooms 直读改走它，`db.watch` 保留为实时快通道 → **读权限从硬前提降级为实时优化**（没设也能轮询围观）。311 测试绿。代码 commit `e1f697e`、main `f02be97`；**`room_get` 已 GUI 部署（Active）**，rooms 读权限用户已设。**待 AX：上传新客户端让 room_get 生效**（上传前 GUI「云端测试」room_get 传 `{"code":"A1B2C3"}` 应回 `room_not_found`）。详见 docs/PLAN.md 2026-06-19。
+
+**⚠️ 云函数部署踩坑（2026-06-19 定论，覆盖 2026-06-14 误判）**：`cli cloud functions deploy` 报 `getCloudAPISignedHeader 41002 system error` **不是「微信签名后端抽风、等自愈」**——是 **CLI 这条签名通道对本机坏了**（账号/环境/网络/登录/appid 全好，已逐项排除；连重部署已存在的函数也同样 41002，但 list/info 等 read 正常）。**正确处理：直接用 IDE GUI 部署** —— 右键 `cloudfunctions/<fn>` →「上传并部署：云端安装依赖」（GUI 走 IDE 内部会话签名，是好的通道）。别再按旧 doc 空等几小时。`cli ... download` 也被同一 quirk 挡。
 
 ## 账号与环境（2026-06-12 注册完成）
 
