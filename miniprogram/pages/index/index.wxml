@@ -133,7 +133,7 @@
     <button class="btn btn--ghost nav__btn" hover-class="btn--pressed" bindtap="goProfile">我的档案</button>
     <button class="btn btn--ghost nav__btn" hover-class="btn--pressed" bindtap="goPlayers">玩家天梯</button>
     <button wx:if="{{roomCode}}" class="btn btn--ghost nav__btn" hover-class="btn--pressed" bindtap="goRoom">进房间</button>
-    <button wx:else class="btn btn--ghost nav__btn" hover-class="btn--pressed" bindtap="onEnterRoomCode">围观别人</button>
+    <button class="btn btn--ghost nav__btn" hover-class="btn--pressed" bindtap="onEnterRoomCode">围观别人</button>
   </view>
 
   <view class="bar-spacer"></view>
@@ -203,7 +203,7 @@
       </view>
       <view class="reset-item" catchtap="onResetPick" data-mode="clear">
         <text class="reset-item__main">清空玩家重来</text>
-        <text class="reset-item__sub">玩家、比分、历史全部清空</text>
+        <text class="reset-item__sub">玩家、比分、历史全部清空 · 开新围观房间</text>
       </view>
       <view class="reset-cancel" catchtap="onResetPick" data-mode="cancel">取消</view>
     </view>
