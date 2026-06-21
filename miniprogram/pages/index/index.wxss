@@ -89,13 +89,6 @@
   justify-content: space-between;
 }
 
-.share__watch {
-  width: 100%;
-  height: var(--touch-min);
-  line-height: var(--touch-min);
-  font-size: var(--font-body);
-}
-
 .share__code {
   font-size: var(--font-title);
   font-weight: 700;
@@ -243,7 +236,7 @@
   color: var(--text-secondary);
 }
 
-/* 两行两列：4 字按钮（对局历史/我的档案/玩家天梯/围观别人）一行四个会被截断 */
+/* 两行两列：4 字按钮（对局历史/我的档案/玩家天梯/进我的房间）一行四个会被截断 */
 .nav {
   display: flex;
   flex-wrap: wrap;

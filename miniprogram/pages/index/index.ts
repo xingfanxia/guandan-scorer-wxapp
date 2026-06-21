@@ -96,22 +96,6 @@ Page({
     this.refresh();
   },
 
-  onOpenRoom() {
-    wx.showLoading({ title: '开房间…' });
-    getOwnerSession().create().then((res: { ok: boolean; code?: string; msg?: string }) => {
-      wx.hideLoading();
-      if (res.ok) {
-        this.setData({ roomCode: res.code });
-        wx.showToast({ title: `房间 ${res.code} 已开`, icon: 'none' });
-      } else {
-        wx.showToast({ title: res.msg || '建房失败', icon: 'none' });
-      }
-    }).catch(() => {
-      wx.hideLoading();
-      wx.showToast({ title: '建房失败，检查网络', icon: 'none' });
-    });
-  },
-
   onShareAppMessage() {
     const code = getOwnerSession().getCode();
     if (code) {
@@ -779,24 +763,6 @@ Page({
   goRoom() {
     const code = getOwnerSession().getCode();
     if (code) wx.navigateTo({ url: `/pages/room/room?code=${code}` });
-  },
-
-  /** 手输房间码围观 —— 分享卡片不可用时（如未认证）的兜底入口 */
-  onEnterRoomCode() {
-    wx.showModal({
-      title: '围观房间',
-      editable: true,
-      placeholderText: '输入 6 位房间码，如 A2B3C4',
-      success: (res) => {
-        if (!res.confirm || !res.content) return;
-        const code = res.content.trim().toUpperCase();
-        if (!/^[A-Z][0-9A-Z]{5}$/.test(code)) {
-          wx.showToast({ title: '房间码是 6 位字母数字', icon: 'none' });
-          return;
-        }
-        wx.navigateTo({ url: `/pages/room/room?code=${code}` });
-      }
-    });
   },
 
   onAdvance() {
