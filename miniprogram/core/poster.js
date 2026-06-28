@@ -15,6 +15,30 @@ import { displayHonorTitle } from './honorDisplay.js';
 
 export const POSTER_W = 600;
 
+/**
+ * 保守的跨设备 canvas 背板上限（GPU maxTextureSize）。低端 Android / 老 iOS 常为 4096，
+ * 中高端 8192+。canvasToTempFilePath 在背板任一边超过该上限时真机直接导不出
+ * （模拟器走桌面 GPU 上限高 → 之前只在模拟器测过，真机长图必失败）。取 4096 兜全机型。
+ */
+export const MAX_CANVAS_DIM = 4096;
+
+/**
+ * 纯函数：算海报离屏 canvas 的缩放系数，保证背板两边都 <= maxDim。
+ * 想要 dpr 的清晰度，但任一边 × dpr 超上限时按最长边比例压（可 < 1：超长历史宁可降清晰度也要导得出）。
+ * @param {number} width  布局宽（POSTER_W）
+ * @param {number} height 布局高（随逐局历史动态增长，可达上万）
+ * @param {number} dpr    设备像素比（调用方从 wx.getWindowInfo 取）
+ * @param {number} [maxDim=MAX_CANVAS_DIM]
+ * @returns {number} scale ∈ (0, dpr]
+ */
+export function computePosterScale(width, height, dpr, maxDim = MAX_CANVAS_DIM) {
+  const d = Number.isFinite(dpr) && dpr > 0 ? dpr : 1;
+  const longest = Math.max(Number(width) || 1, Number(height) || 1);
+  // 贴边系数：最长边 × scale === maxDim 时 fit；longest 本就小于 maxDim 时 fit>1 → 被 dpr 截断
+  const fit = maxDim / longest;
+  return Math.min(d, fit);
+}
+
 const C = {
   bg: '#F4F6F3',
   text: '#1B221E',
