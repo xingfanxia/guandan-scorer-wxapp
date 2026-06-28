@@ -4,7 +4,7 @@ import { getOwnerSession, subscribeOwnerCode } from '../../core/ownerRoom.js';
 import { buildBoardVM } from '../../core/viewModel.js';
 import { computeSessionMvp } from '../../core/victoryStats.js';
 import { buildProfileSessions } from '../../core/profileSession.js';
-import { buildPosterLayout, paintPoster } from '../../core/poster.js';
+import { buildPosterLayout, paintPoster, computePosterScale } from '../../core/poster.js';
 import { deriveVoteSessionKey } from '../../shared-logic/voteSessionKey.js';
 import { applyTheme, setThemePref, effectiveTheme } from '../../core/theme.js';
 
@@ -94,22 +94,6 @@ Page({
     // 故这里直读一次播种；后续 code 变化由订阅锁步。勿删此行。
     this.setData({ roomCode: getOwnerSession().getCode() || '' });
     this.refresh();
-  },
-
-  onOpenRoom() {
-    wx.showLoading({ title: '开房间…' });
-    getOwnerSession().create().then((res: { ok: boolean; code?: string; msg?: string }) => {
-      wx.hideLoading();
-      if (res.ok) {
-        this.setData({ roomCode: res.code });
-        wx.showToast({ title: `房间 ${res.code} 已开`, icon: 'none' });
-      } else {
-        wx.showToast({ title: res.msg || '建房失败', icon: 'none' });
-      }
-    }).catch(() => {
-      wx.hideLoading();
-      wx.showToast({ title: '建房失败，检查网络', icon: 'none' });
-    });
   },
 
   onShareAppMessage() {
@@ -723,19 +707,20 @@ Page({
             wx.showToast({ title: '画布初始化失败', icon: 'none' });
             return;
           }
-          // 长图高度 × dpr 可能撞老设备 canvas 尺寸上限（≈8192）—— 超限降为 1x 导出
-          const dpr = Math.min((wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()).pixelRatio || 2, 2);
-          const scale = layout.height * dpr > 8000 ? 1 : dpr;
-          canvas.width = layout.width * scale;
-          canvas.height = layout.height * scale;
+          // 背板任一边超设备 GPU maxTextureSize（常见 4096）则 canvasToTempFilePath 真机导不出 ——
+          // computePosterScale 把最长边压进上限（超长历史允许 scale<1，降清晰度也要导得出）
+          const dpr = (wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()).pixelRatio || 2;
+          const scale = computePosterScale(layout.width, layout.height, dpr);
+          canvas.width = Math.round(layout.width * scale);
+          canvas.height = Math.round(layout.height * scale);
           const ctx = canvas.getContext('2d');
           ctx.scale(scale, scale);
           paintPoster(ctx, layout);
 
           wx.canvasToTempFilePath({
             canvas,
-            destWidth: layout.width * scale,
-            destHeight: layout.height * scale,
+            destWidth: canvas.width,
+            destHeight: canvas.height,
             success: (file) => {
               wx.saveImageToPhotosAlbum({
                 filePath: file.tempFilePath,
@@ -750,8 +735,10 @@ Page({
                 }
               });
             },
-            fail: () => {
+            fail: (err) => {
               done();
+              // 留证：真机若仍失败，errMsg 含具体原因（尺寸/内存/权限），便于下一次复现定位
+              console.error('[poster] canvasToTempFilePath 失败:', err, `背板 ${canvas.width}×${canvas.height}`);
               wx.showToast({ title: '长图生成失败', icon: 'none' });
             }
           });
@@ -779,24 +766,6 @@ Page({
   goRoom() {
     const code = getOwnerSession().getCode();
     if (code) wx.navigateTo({ url: `/pages/room/room?code=${code}` });
-  },
-
-  /** 手输房间码围观 —— 分享卡片不可用时（如未认证）的兜底入口 */
-  onEnterRoomCode() {
-    wx.showModal({
-      title: '围观房间',
-      editable: true,
-      placeholderText: '输入 6 位房间码，如 A2B3C4',
-      success: (res) => {
-        if (!res.confirm || !res.content) return;
-        const code = res.content.trim().toUpperCase();
-        if (!/^[A-Z][0-9A-Z]{5}$/.test(code)) {
-          wx.showToast({ title: '房间码是 6 位字母数字', icon: 'none' });
-          return;
-        }
-        wx.navigateTo({ url: `/pages/room/room?code=${code}` });
-      }
-    });
   },
 
   onAdvance() {

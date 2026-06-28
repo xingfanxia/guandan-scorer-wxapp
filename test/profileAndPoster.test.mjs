@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildProfileSessions } from '../miniprogram/core/profileSession.js';
-import { buildPosterLayout, paintPoster, POSTER_W } from '../miniprogram/core/poster.js';
+import { buildPosterLayout, paintPoster, POSTER_W, computePosterScale, MAX_CANVAS_DIM } from '../miniprogram/core/poster.js';
 import { createGameStore } from '../miniprogram/core/gameStore.js';
 
 function entry(winKey, rankToPlayer, mode = '4') {
@@ -228,6 +228,48 @@ describe('gameStore — review 补强（subscribe/setTeamName/中间索引回滚
     const b = store.addPlayer({ name: '帆2', emoji: '🦈', team: 1, handle: 'axax' });
     assert.equal(b.ok, false);
     assert.match(b.msg, /axax/);
+  });
+});
+
+describe('computePosterScale — canvas 背板尺寸不超设备纹理上限（真机导不出根因）', () => {
+  // 钉死真机口径：背板用 Math.round(dim*scale)（与 index.ts 调用点一致），两边都不得超 maxDim
+  const within = (w, h, scale, maxDim) =>
+    Math.round(w * scale) <= maxDim && Math.round(h * scale) <= maxDim;
+
+  it('短海报：scale 跟随 dpr（不超 maxDim 时不缩）', () => {
+    // 600×2360 @ dpr2 → 最长边 2360×2=4720 > 4096 → 必须缩到正好贴边，而非沿用 dpr=2
+    const scale = computePosterScale(600, 2360, 2);
+    assert.ok(scale <= 2, 'scale 不应超过 dpr');
+    assert.ok(within(600, 2360, scale, MAX_CANVAS_DIM), '背板任一边不得超 maxDim');
+  });
+
+  it('小海报：完全放得下时 scale === dpr（不无谓降清晰度）', () => {
+    // 600×1500 @ dpr2 → 最长边 3000 < 4096 → 保留 dpr=2
+    assert.equal(computePosterScale(600, 1500, 2), 2);
+  });
+
+  it('超长历史海报：允许 scale < 1 以贴合上限（清晰度降级好过导不出）', () => {
+    const scale = computePosterScale(600, 10000, 2);
+    assert.ok(scale < 1, '超长海报应缩到 <1');
+    assert.ok(within(600, 10000, scale, MAX_CANVAS_DIM), '背板高不得超 maxDim');
+  });
+
+  it('任意 height 下背板两边都 <= maxDim（不变式）', () => {
+    for (const h of [700, 3000, 4096, 5000, 8192, 20000]) {
+      for (const dpr of [1, 2, 3]) {
+        const scale = computePosterScale(POSTER_W, h, dpr);
+        assert.ok(within(POSTER_W, h, scale, MAX_CANVAS_DIM), `h=${h} dpr=${dpr} 越界`);
+        assert.ok(scale <= dpr + 1e-9, `h=${h} dpr=${dpr} scale 超 dpr`);
+        assert.ok(scale > 0, `h=${h} dpr=${dpr} scale 非正`);
+      }
+    }
+  });
+
+  it('dpr 缺失/非法时回退为 1，结果仍有界', () => {
+    for (const bad of [undefined, null, 0, -2, NaN]) {
+      const scale = computePosterScale(600, 3000, bad);
+      assert.ok(scale > 0 && within(600, 3000, scale, MAX_CANVAS_DIM), `dpr=${bad} 异常`);
+    }
   });
 });
 
